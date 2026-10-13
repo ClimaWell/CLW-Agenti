@@ -234,6 +234,96 @@
       background: var(--ice);
     }
 
+    /* Sync Button & Status Badge */
+    .user-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .sync-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #e6f4ea;
+      color: #137333;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: .78rem;
+      font-weight: 600;
+      border: 1px solid rgba(19, 115, 51, 0.2);
+    }
+    .sync-pill.pending {
+      background: #fef7e0;
+      color: #b06000;
+      border-color: rgba(176, 96, 0, 0.2);
+    }
+    .btn-sync-all {
+      background: linear-gradient(135deg, #0b2942 0%, #1a4d75 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: .88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(11, 41, 66, 0.2);
+      transition: all .15s ease;
+    }
+    .btn-sync-all:hover {
+      background: linear-gradient(135deg, #123b5d 0%, #20689b 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(11, 41, 66, 0.26);
+    }
+    .btn-sync-all:active {
+      transform: translateY(0);
+    }
+    .btn-sync-all:disabled {
+      opacity: 0.75;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .spin-anim {
+      display: inline-block;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .sync-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0b2942;
+      color: #ffffff;
+      padding: 14px 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+      z-index: 1000;
+      font-size: .88rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all .25s ease;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+    .sync-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .sync-toast.error {
+      background: #c5221f;
+    }
+
     /* Practices Section */
     .practices-card {
       background: var(--card-bg);
@@ -653,9 +743,18 @@
         <div class="hero-welcome">
           <div>
             <h1>Offerte e ordini</h1>
-            <span id="welcome" class="user-pill">👤 Accesso in corso…</span>
+            <div class="user-status-bar">
+              <span id="welcome" class="user-pill">👤 Accesso in corso…</span>
+              <span id="lastSyncBadge" class="sync-pill">⏱️ Ultimo allineamento: verifica…</span>
+            </div>
           </div>
-          <button class="btn-sub" id="refresh" title="Ricarica dal foglio Google">🔄 Aggiorna registro</button>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-sync-all" id="btnSyncAll" title="Sincronizza Catalogo, Clienti e Registro con Google Drive e Plus 2000">
+              <span class="sync-btn-icon" id="syncBtnIcon">🔄</span>
+              <span id="syncBtnText">Sincronizza & Aggiorna Dati</span>
+            </button>
+            <button class="btn-sub" id="refresh" title="Ricarica rapida solo registro pratiche" style="font-size:0.8rem; padding:8px 10px;">📋 Solo registro</button>
+          </div>
         </div>
 
         <div class="actions-grid">
@@ -1233,8 +1332,189 @@
       location.reload();
     };
 
+    // IndexedDB Support for Full Offline-First Synchronization
+    function openDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('offerte-agenti', 2);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('data')) db.createObjectStore('data');
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbSet(key, value) {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('data', 'readwrite');
+        tx.objectStore('data').put(value, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function showSyncToast(message, isError = false) {
+      const toast = $('syncToast');
+      const msg = $('syncToastMsg');
+      if (!toast || !msg) return;
+      msg.textContent = message;
+      toast.className = `sync-toast show${isError ? ' error' : ''}`;
+      setTimeout(() => {
+        toast.className = 'sync-toast';
+      }, 5000);
+    }
+
+    function updateLastSyncUI(isoStr) {
+      const badge = $('lastSyncBadge');
+      if (!badge) return;
+      if (!isoStr) {
+        badge.textContent = '⏱️ Non ancora allineato';
+        badge.className = 'sync-pill pending';
+        return;
+      }
+      try {
+        const d = new Date(isoStr);
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        const timeStr = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = isToday ? 'Oggi' : d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+        badge.textContent = `✅ Allineato: ${dateStr} ${timeStr}`;
+        badge.className = 'sync-pill';
+      } catch {
+        badge.textContent = '✅ Allineato di recente';
+        badge.className = 'sync-pill';
+      }
+    }
+
+    async function syncAllData(isManual = false) {
+      const btn = $('btnSyncAll');
+      const icon = $('syncBtnIcon');
+      const text = $('syncBtnText');
+      const badge = $('lastSyncBadge');
+
+      if (btn) btn.disabled = true;
+      if (icon) icon.classList.add('spin-anim');
+      if (text) text.textContent = 'Sincronizzazione in corso…';
+      if (badge) {
+        badge.textContent = '🔄 Download dati da Google Drive…';
+        badge.className = 'sync-pill pending';
+      }
+
+      try {
+        if (window.companyConfigPromise) {
+          try { await window.companyConfigPromise; } catch {}
+        }
+        const def = window.OFFICIAL_SYSTEM_SPREADSHEETS || {
+          company: { spreadsheetId: "1-ntNPKA3gdjZaxYntGNkXtKC5Kt4JIXGSoQfESO169M", tab: "Dati azienda" },
+          agents: { spreadsheetId: "13HaTubf4_xVTtzkQUcYINkRtuSzLR2qGzJAiA-oAecU", tab: "Agenti" },
+          customers: { spreadsheetId: "1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8", tab: "clienti" },
+          products: { spreadsheetId: "1g6zrWK_zZJZ82kdoNgda9KuoemYlSs0XGRRfJvoOvUk", tab: "q_listino_prezzi_catalogo" },
+          repository: { spreadsheetId: "10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw", tabHeader: "DocTes", tabLines: "DocRig", tabOffers: "DocTes", tabOrders: "DocTes" }
+        };
+        const cfg = window.companyConfig || def;
+        const getValidId = (id, fallback) => (!id || typeof id !== 'string' || id.length < 20 || id.includes('1mnW') || id.includes('1N6ZcGa')) ? fallback : id.trim();
+
+        const compId = getValidId(cfg.company?.spreadsheetId, def.company.spreadsheetId);
+        const agId = getValidId(cfg.agents?.spreadsheetId, def.agents.spreadsheetId);
+        const custId = getValidId(cfg.customers?.spreadsheetId, def.customers.spreadsheetId);
+        const prodId = getValidId(cfg.products?.spreadsheetId, def.products.spreadsheetId);
+        const repoId = getValidId(cfg.repository?.spreadsheetId, def.repository.spreadsheetId);
+
+        const qs = (id, tab) => {
+          const params = new URLSearchParams();
+          if (id) params.set('id', id);
+          if (tab) params.set('tab', tab);
+          const str = params.toString();
+          return str ? '?' + str : '';
+        };
+
+        // 1. Download parallelo di tutti i dati dal cloud (Catalogo, Clienti, Agenti, Pratiche)
+        const [prodRes, custRes, agRes, compRes, offRes, ordRes] = await Promise.all([
+          api(`products${qs(prodId, cfg.products?.tab || def.products.tab)}`),
+          api(`customers${qs(custId, cfg.customers?.tab || def.customers.tab)}`),
+          api(`agents${qs(agId, cfg.agents?.tab || def.agents.tab)}`).catch(() => ({})),
+          api(`company${qs(compId, cfg.company?.tab || def.company.tab)}`).catch(() => ({})),
+          api(`offers${qs(repoId, cfg.repository?.tabOffers || def.repository.tabOffers)}`),
+          api(`orders${qs(repoId, cfg.repository?.tabOrders || def.repository.tabOrders)}`)
+        ]);
+
+        const products = prodRes.products || [];
+        const customers = custRes.customers || [];
+        const agents = agRes.agents || [];
+        const company = compRes.company || {};
+
+        // 2. Salva catalogo prodotti e clienti su IndexedDB per l'editor ordini (offline-first)
+        const dataMeta = {
+          generatedAt: new Date().toISOString(),
+          source: 'Google Sheets Live API',
+          articleCount: products.length,
+          clientCount: customers.length,
+          agentCount: agents.length
+        };
+        await dbSet('dataset', { meta: dataMeta, articles: products, clients: customers }).catch(() => {});
+        if (Object.keys(company).length > 0) {
+          await dbSet('company-profile', company).catch(() => {});
+        }
+        if (agents.length > 0) {
+          await dbSet('agents-data', { agents, hierarchy: agRes.hierarchy || {} }).catch(() => {});
+        }
+
+        // 3. Elabora pratiche (offerte e ordini) per la dashboard
+        const practiceMap = new Map();
+        (offRes.offers || []).forEach(x => {
+          const num = x.number || x.offer_number || x.offerNumber || x.id;
+          practiceMap.set(num, { ...x, type: x.type || 'Offerta', number: num });
+        });
+        (ordRes.orders || []).forEach(x => {
+          const num = x.number || x.order_number || x.orderNumber || x.id;
+          if (!practiceMap.has(num)) {
+            practiceMap.set(num, { ...x, type: x.type || 'Ordine', number: num });
+          } else {
+            const isOrder = x.tpDoc === 'OCL' || x.tpDoc === 'ORC' || x.tpDoc === 'ORD' || (x.type === 'Ordine');
+            if (isOrder) {
+              practiceMap.set(num, { ...x, type: 'Ordine', number: num });
+            }
+          }
+        });
+        allPractices = Array.from(practiceMap.values())
+          .sort((x, y) => String(y.updated_at || y.submitted_at || '').localeCompare(String(x.updated_at || x.submitted_at || '')));
+
+        localStorage.setItem('oa_cached_practices', JSON.stringify(allPractices));
+
+        // 4. Salva timestamp di sincronizzazione
+        const nowIso = new Date().toISOString();
+        localStorage.setItem('oa_last_full_sync', nowIso);
+        updateLastSyncUI(nowIso);
+
+        $('statusDot').style.background = '#34d399';
+        $('offlineNotice').classList.add('hidden');
+        renderList();
+
+        // 5. Notifica toast per l'agente
+        showSyncToast(`✅ Sincronizzazione completata! ${products.length.toLocaleString('it-IT')} articoli, ${customers.length.toLocaleString('it-IT')} clienti e registro pratiche allineati.`);
+      } catch (err) {
+        console.error('Errore sincronizzazione completa:', err);
+        showSyncToast(`⚠️ Errore sincronizzazione: ${err.message}`, true);
+        $('statusDot').style.background = '#fbbf24';
+      } finally {
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('spin-anim');
+        if (text) text.textContent = 'Sincronizza & Aggiorna Dati';
+      }
+    }
+
+    $('btnSyncAll').onclick = () => syncAllData(true);
     $('refresh').onclick = load;
+
+    updateLastSyncUI(localStorage.getItem('oa_last_full_sync'));
     load();
   </script>
+
+  <!-- Toast Notification Container -->
+  <div id="syncToast" class="sync-toast">
+    <span id="syncToastMsg">Dati sincronizzati con successo!</span>
+  </div>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
   <meta charset="utf-8">
-  <title>Manuale Operativo di Gestione — Pascal Cosmesi International</title>
+  <title>Manuale Operativo di Gestione — Climawell -- </title>
   <!--[if gte mso 9]>
   <xml>
     <w:WordDocument>
@@ -260,7 +260,7 @@
   <!-- INTRODUZIONE -->
   <h1>Introduzione Generale: L'Ecosistema Gestionale Pascal Cosmesi</h1>
   <p>
-    Il gestionale aziendale Pascal Cosmesi International è una piattaforma web progressiva (PWA) progettata per unire in un unico flusso continuo la <strong>rete vendite</strong> (agenti sul territorio), il <strong>reparto produttivo</strong>, il <strong>magazzino centrale</strong> e l'<strong>ufficio amministrativo</strong>.
+    Il sistema di gestione Offerte / Ordini  è una piattaforma web progressiva (PWA) progettata per unire in un unico flusso continuo la <strong>rete vendite</strong> (agenti sul territorio), il <strong>reparto produttivo</strong>, il <strong>magazzino centrale</strong> e l'<strong>ufficio amministrativo</strong>.
   </p>
   <p>
     La piattaforma si poggia su un'architettura cloud centralizzata in <strong>Google Drive / Google Sheets</strong>. Questo significa che tutti i dati (cataloghi prodotti, clienti, ordini, giacenze e movimentazioni) sono sempre sincronizzati in tempo reale tra tutti i dispositivi aziendali autorizzati, senza necessità di installare software complessi sui computer.
