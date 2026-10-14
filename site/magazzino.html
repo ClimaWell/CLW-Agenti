@@ -931,10 +931,12 @@
         toast('Seleziona prima un ordine');
         return;
       }
-      const match = currentPickingLines.find(l => 
-        (l.barcode && l.barcode.toLowerCase() === code.toLowerCase()) ||
-        (l.product_code && l.product_code.toLowerCase() === code.toLowerCase())
-      );
+      const match = currentPickingLines.find(l => {
+        if (l.product_code && l.product_code.toLowerCase() === code.toLowerCase()) return true;
+        if (!l.barcode) return false;
+        const bList = l.barcode.split(',').map(b => b.trim().toLowerCase());
+        return bList.includes(code.toLowerCase()) || l.barcode.toLowerCase() === code.toLowerCase();
+      });
       if (match) {
         match.picked_qty = Math.min(match.quantity, (match.picked_qty || 0) + 1);
         if (match.picked_qty >= match.quantity) match.is_completed = true;

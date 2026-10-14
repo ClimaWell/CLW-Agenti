@@ -194,7 +194,10 @@ async function loadData() {
           code: p.code,
           description: p.description,
           brand: p.brand || '',
-          family: p.family || p.macro_family || '',
+          sector: p.sector || '',
+          macroFamily: p.macro_family || '',
+          family: p.family || '',
+          group: [p.brand, p.sector, p.macro_family, p.family].filter(Boolean).join(' · '),
           price: Number(p.price) || 0,
           um: p.um || 'PZ',
           stock: Number(p.stock_qty) || 0,
@@ -202,6 +205,8 @@ async function loadData() {
           barcode: p.barcode || '',
           vat: Number(p.vat) || 22,
           maxDiscount: Number(p.max_discount) || 60,
+          imageUrl: p.image_url || '',
+          imageRef: p.image_ref || '',
           image: p.image_url || ''
         }));
       }
@@ -986,6 +991,18 @@ async function submitOffer() {
     } catch (supErr) {
       console.warn('[Supabase] Errore inserimento documento:', supErr);
     }
+  }
+
+  // Pulisce il numero di bozza salvato per l'agente e la bozza corrente così il prossimo documento ha numero univoco
+  try {
+    const storageKey = documentType === 'order' ? 'order-numbers' : 'offer-numbers';
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    delete saved[currentAgentId()];
+    localStorage.setItem(storageKey, JSON.stringify(saved));
+    localStorage.removeItem('offer-demo');
+    localStorage.removeItem('offer-editing-info');
+  } catch (cleanErr) {
+    console.warn('Errore pulizia bozza locale:', cleanErr);
   }
 
   if (!navigator.onLine) {

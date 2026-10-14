@@ -105,7 +105,7 @@
             .eq('active', true)
             .order('code', { ascending: true });
 
-          if (options.limit) q = q.limit(options.limit);
+          q = q.limit(options.limit || 50000);
           if (options.search) {
             const s = options.search.trim();
             q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,barcode.ilike.%${s}%,brand.ilike.%${s}%`);
@@ -142,7 +142,7 @@
           const { data, error } = await client
             .from('products')
             .select('*, product_locations(*)')
-            .or(`barcode.eq.${term},code.eq.${term}`)
+            .or(`barcode.eq.${term},code.eq.${term},barcode.ilike.%${term}%`)
             .limit(1);
 
           if (!error && data && data.length) return data[0];
@@ -155,9 +155,16 @@
       const prods = (await getLocalCache('products')) || [];
       return (
         prods.find(
-          p =>
-            String(p.barcode || '').trim() === term ||
-            String(p.code || '').trim().toLowerCase() === term.toLowerCase()
+          p => {
+            const b = String(p.barcode || '').trim();
+            const bList = b.split(',').map(s => s.trim());
+            return (
+              b === term ||
+              bList.includes(term) ||
+              b.includes(term) ||
+              String(p.code || '').trim().toLowerCase() === term.toLowerCase()
+            );
+          }
         ) || null
       );
     },
@@ -287,6 +294,11 @@
             .select('*')
             .order('created_at', { ascending: false });
           if (!error && data) return data;
+          if (error) {
+            console.warn('[Supabase] Tentativo getDocuments fallback:', error.message);
+            const res2 = await client.from('documents').select('*');
+            if (!res2.error && res2.data) return res2.data;
+          }
         } catch (err) {
           console.warn('[Supabase] Errore documents:', err.message);
         }
@@ -731,6 +743,60 @@
       const { error } = await client.from('app_users').delete().eq('id', id);
       if (error) throw error;
       return true;
+    },
+
+    /**
+     * Svuota la cache locale IndexedDB per forzare il download fresco dei dati
+     */
+    async clearLocalCache() {
+      try {
+        const db = await openFallbackDb();
+        const tx = db.transaction('data', 'readwrite');
+        tx.objectStore('data').clear();
+      } catch (e) {
+        console.warn('Errore pulizia cache:', e);
+      }
+    },
+
+    /**
+     * Invia una richiesta on-demand di sincronizzazione da Plus 2000 verso Supabase
+     */
+    async requestPlusSync(type = 'ACTIVE') {
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non disponibile');
+      const reqNumber = 'SYNC-' + Date.now();
+      const payload = {
+        document_type: 'SYNC_REQUEST',
+        number: reqNumber,
+        document_date: new Date().toISOString().split('T')[0],
+        status: 'Richiesto',
+        customer_name: 'Sistema Web App',
+        notes: type === 'FULL' ? 'FULL SYNC' : 'ACTIVE SYNC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { data, error } = await client.from('documents').insert([payload]).select();
+      if (error) throw error;
+      return { number: reqNumber, record: (data && data[0]) || payload };
+    },
+
+    /**
+     * Verifica lo stato di avanzamento di una richiesta di sincronizzazione da Plus 2000
+     */
+    async checkPlusSyncStatus(reqNumber) {
+      const client = initClient();
+      if (!client) return null;
+      try {
+        const { data, error } = await client
+          .from('documents')
+          .select('id, number, status, notes, updated_at')
+          .eq('number', reqNumber)
+          .limit(1);
+        if (!error && data && data.length) return data[0];
+      } catch (e) {
+        console.warn('Errore checkPlusSyncStatus:', e);
+      }
+      return null;
     }
   };
 
