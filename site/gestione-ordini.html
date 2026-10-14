@@ -6,6 +6,8 @@
   <title>Gestione Ordini & Magazzino — Offerte Agenti</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabaseClient.js"></script>
   <style>
     .workflow-shell { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
     .workflow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px; }
@@ -1137,17 +1139,59 @@
     async function loadOrders() {
       try {
         loadAuxiliaryData();
-        if (window.companyConfigPromise) {
-          try { await window.companyConfigPromise; } catch {}
+        
+        let loadedFromSupabase = false;
+        if (window.ClwData && window.ClwData.isConfigured()) {
+          try {
+            const client = window.clwSupabase || (window.supabase && window.supabase.createClient(window.ClwData.getConfig().url, window.ClwData.getConfig().key));
+            if (client) {
+              const { data: supOrders, error: supErr } = await client
+                .from('documents')
+                .select('*')
+                .eq('document_type', 'OCL')
+                .order('created_at', { ascending: false });
+
+              if (!supErr && Array.isArray(supOrders)) {
+                allOrders = supOrders.map(d => ({
+                  id: d.number,
+                  number: d.number,
+                  customer_name: d.customer_name,
+                  customer_code: d.customer_code,
+                  agent_name: d.agent_name,
+                  agent_code: d.agent_code,
+                  total: Number(d.total) || 0,
+                  subtotal: Number(d.subtotal) || 0,
+                  workflow_status: (d.status === 'In Preparazione' ? 'magazzino' : (d.status === 'Spedito' ? 'spedito' : (d.status === 'Approvato' ? 'approvato' : 'ricevuto'))),
+                  submitted_at: d.created_at || d.document_date,
+                  notes: d.notes || '',
+                  shipping_date: d.shipping_date || '',
+                  carrier: d.carrier || '',
+                  ddt_number: d.ddt_number || '',
+                  tracking_number: d.tracking_number || ''
+                }));
+                updateStats();
+                renderOrders();
+                loadedFromSupabase = true;
+              }
+            }
+          } catch (supErr) {
+            console.warn('[Supabase] Errore ordini in gestione-ordini, fallback su API:', supErr);
+          }
         }
-        const rawRepo = window.companyConfig?.repository?.spreadsheetId;
-        const repoId = (rawRepo && rawRepo.length >= 20 && !rawRepo.includes('1mnW')) ? rawRepo : '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc';
-        const res = await fetch(`/api/orders?id=${encodeURIComponent(repoId)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        allOrders = data.orders || [];
-        updateStats();
-        renderOrders();
+
+        if (!loadedFromSupabase) {
+          if (window.companyConfigPromise) {
+            try { await window.companyConfigPromise; } catch {}
+          }
+          const rawRepo = window.companyConfig?.repository?.spreadsheetId;
+          const repoId = (rawRepo && rawRepo.length >= 20 && !rawRepo.includes('1mnW')) ? rawRepo : '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc';
+          const res = await fetch(`/api/orders?id=${encodeURIComponent(repoId)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          allOrders = data.orders || [];
+          updateStats();
+          renderOrders();
+        }
       } catch (err) {
         console.error(err);
         $('ordersContainer').innerHTML = `

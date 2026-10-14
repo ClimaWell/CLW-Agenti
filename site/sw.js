@@ -1,22 +1,22 @@
-const CACHE = 'offerte-agenti-v34';
+const CACHE = 'offerte-agenti-v35';
 const ASSETS = [
   '/',
   '/index.html',
   '/offerta',
   '/configurazione.html',
+  '/magazzino.html',
   '/gestione-ordini.html',
   '/area-sviluppo.html',
   '/pianificazione-produzione.html',
   '/giro-visite.html',
   '/privacy.html',
-  '/manuale-amministrazione.doc',
+  '/supabaseClient.js',
   '/offer-app.js',
   '/config/companyConfig.js',
   '/styles.css',
   '/dense.css',
   '/roles.css',
   '/data.css',
-  '/seed-data.json',
   '/manifest.webmanifest',
   '/favicon.svg'
 ];
