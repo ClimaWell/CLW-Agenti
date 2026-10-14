@@ -231,6 +231,70 @@
     },
 
     /**
+     * Recupera l'elenco ufficiale degli agenti da Supabase (sincronizzati da Plus 2000)
+     */
+    async getAgents() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('agents')
+            .select('*')
+            .eq('active', true)
+            .order('name', { ascending: true });
+          if (!error && data && data.length) {
+            setLocalCache('agents', data);
+            return data;
+          }
+        } catch (err) {
+          console.warn('[Supabase] Errore lettura agenti:', err.message);
+        }
+      }
+      const cached = await getLocalCache('agents');
+      return cached || [];
+    },
+
+    /**
+     * Recupera il profilo aziendale da Supabase
+     */
+    async getCompany() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('company_profile')
+            .select('*')
+            .limit(1);
+          if (!error && data && data.length) {
+            return data[0];
+          }
+        } catch (err) {
+          console.warn('[Supabase] Errore company_profile:', err.message);
+        }
+      }
+      return null;
+    },
+
+    /**
+     * Recupera tutte le offerte e gli ordini da Supabase
+     */
+    async getDocuments() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('documents')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data) return data;
+        } catch (err) {
+          console.warn('[Supabase] Errore documents:', err.message);
+        }
+      }
+      return [];
+    },
+
+    /**
      * Recupera gli ordini da preparare (per il magazziniere)
      */
     async getWarehouseOrders() {
@@ -407,6 +471,80 @@
         total: grandTotal,
         documentType
       };
+    },
+
+    /**
+     * Salva o aggiorna un'Offerta (OFC) o un Ordine (OCL) direttamente su Supabase
+     */
+    async createDocument({ documentType, number, customer, agent, lines, totals, paymentMethod, validityDays, notes }) {
+      const client = initClient();
+      const tp = documentType === 'order' || documentType === 'OCL' ? 'OCL' : 'OFC';
+      const docPayload = {
+        document_type: tp,
+        number: number,
+        document_date: new Date().toISOString().slice(0, 10),
+        customer_code: customer?.id || customer?.code || '',
+        customer_name: customer?.name || 'Cliente',
+        agent_code: agent?.id || agent?.code || '',
+        agent_name: agent?.name || 'Agente',
+        status: 'Inviato',
+        subtotal: Number(totals?.net) || 0,
+        vat_total: Number(totals?.vat) || 0,
+        total: Number(totals?.grand) || 0,
+        payment_method: paymentMethod || 'Ri.Ba. 60 gg. f.m.',
+        validity_days: Number(validityDays) || 30,
+        notes: notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const formattedLines = (lines || []).map((l, idx) => {
+        const prod = l.product || {};
+        const q = Number(l.qty || l.quantity) || 1;
+        const price = Number(prod.price || l.listPrice || l.price) || 0;
+        const d1 = Number(l.discounts?.[0] || l.discount_1) || 0;
+        const d2 = Number(l.discounts?.[1] || l.discount_2) || 0;
+        const d3 = Number(l.discounts?.[2] || l.discount_3) || 0;
+        const d4 = Number(l.discounts?.[3] || l.discount_4) || 0;
+        const tot = Number(l.net || l.total || (q * price * (1 - d1/100) * (1 - d2/100))) || 0;
+        const netP = q > 0 ? tot / q : price;
+
+        return {
+          document_number: number,
+          line_number: idx + 1,
+          product_code: prod.code || l.code,
+          description: prod.description || l.description || '',
+          brand: prod.brand || l.brand || '',
+          location: prod.location || l.location || '',
+          um: prod.um || l.um || 'PZ',
+          quantity: q,
+          list_price: price,
+          discount_1: d1,
+          discount_2: d2,
+          discount_3: d3,
+          discount_4: d4,
+          net_price: Math.round(netP * 10000) / 10000,
+          vat: Number(prod.vat || l.vat) || 22,
+          total: Math.round(tot * 100) / 100
+        };
+      });
+
+      if (client) {
+        try {
+          const { error: docErr } = await client.from('documents').upsert(docPayload, { onConflict: 'number' });
+          if (docErr) console.warn('[Supabase] Errore inserimento testata documento:', docErr);
+
+          if (formattedLines.length > 0) {
+            await client.from('document_lines').delete().eq('document_number', number);
+            const { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            if (linesErr) console.warn('[Supabase] Errore inserimento righe documento:', linesErr);
+          }
+        } catch (e) {
+          console.warn('[Supabase] Errore salvataggio documento:', e);
+        }
+      }
+
+      return { ok: true, number, total: docPayload.total };
     },
 
     // --- AUTENTICAZIONE & CONTROLLO ACCESSI (app_users) ---
