@@ -140,9 +140,115 @@ async function dbSet(key, value) {
   });
 }
 
-// Dynamic Loading from /api/company, /api/agents, /api/customers, /api/products
 async function loadData() {
-  // Step 1: Load from local cache immediately for instantaneous startup
+  // Step 1: Priorità assoluta a Supabase (Database ufficiale Climawell & Plus 2000)
+  if (window.ClwData && window.ClwData.isConfigured()) {
+    try {
+      const [supAg, supCust, supProd, supComp] = await Promise.all([
+        window.ClwData.getAgents(),
+        window.ClwData.getCustomers(),
+        window.ClwData.getProducts(),
+        window.ClwData.getCompany()
+      ]);
+
+      if (supAg && supAg.length > 0) {
+        AGENTS = supAg.map(a => ({
+          id: a.code,
+          code: a.code,
+          name: a.name,
+          role: a.role === 'admin' ? 'Amministrazione' : (a.role === 'capo_area' ? 'Capo area' : 'Agente'),
+          head: a.role === 'capo_area',
+          discountLimit: Number(a.discount_limit) || 60,
+          email: a.email || '',
+          phone: a.phone || ''
+        }));
+        agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+        hierarchy = {};
+        await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
+      }
+
+      if (supCust && supCust.length > 0) {
+        clients = supCust.map(c => ({
+          id: c.code,
+          code: c.code,
+          name: c.name,
+          agent: c.agent_code,
+          agentId: c.agent_code,
+          address: c.address || '',
+          city: c.city || '',
+          province: c.province || '',
+          postalCode: c.postal_code || '',
+          phone: c.phone || c.mobile || '',
+          email: c.email || '',
+          vat: c.vat_number || '',
+          taxCode: c.tax_code || '',
+          sdi: c.sdi_code || '0000000',
+          payment: c.payment_method || 'Ri.Ba. 60 gg. f.m.',
+          iban: c.iban || ''
+        }));
+      }
+
+      if (supProd && supProd.length > 0) {
+        products = supProd.map(p => ({
+          id: p.code,
+          code: p.code,
+          description: p.description,
+          brand: p.brand || '',
+          sector: p.sector || '',
+          macroFamily: p.macro_family || '',
+          family: p.family || '',
+          group: [p.brand, p.sector, p.macro_family, p.family].filter(Boolean).join(' · '),
+          price: Number(p.price) || 0,
+          um: p.um || 'PZ',
+          stock: Number(p.stock_qty) || 0,
+          location: p.primary_location || '',
+          barcode: p.barcode || '',
+          vat: Number(p.vat) || 22,
+          maxDiscount: Number(p.max_discount) || 60,
+          imageUrl: p.image_url || '',
+          imageRef: p.image_ref || '',
+          image: p.image_url || ''
+        }));
+      }
+
+      if (supComp) {
+        companyProfile = {
+          ...companyProfile,
+          companyName: supComp.company_name || 'Climawell',
+          displayName: supComp.display_name || 'Climawell',
+          vatNumber: supComp.vat_number || '',
+          taxCode: supComp.tax_code || '',
+          address: supComp.address || '',
+          postalCode: supComp.postal_code || '',
+          city: supComp.city || '',
+          province: supComp.province || '',
+          country: supComp.country || 'Italia',
+          email: supComp.email || '',
+          phone: supComp.phone || '',
+          website: supComp.website || '',
+          sdiCode: supComp.sdi_code || '0000000',
+          footerText: supComp.footer_text || ''
+        };
+        await dbSet('company-profile', companyProfile).catch(() => {});
+      }
+
+      if (products.length > 0 && AGENTS.length > 0) {
+        dataMeta = {
+          generatedAt: new Date().toISOString(),
+          source: 'Supabase PostgreSQL (Plus 2000)',
+          articleCount: products.length,
+          clientCount: clients.length,
+          agentCount: AGENTS.length
+        };
+        await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
+        return; // Dati caricati direttamente da Supabase!
+      }
+    } catch (supErr) {
+      console.warn('[Supabase] Errore caricamento in offer-app, fallback locale:', supErr);
+    }
+  }
+
+  // Step 2: Caricamento da cache locale IndexedDB (offline)
   const [cachedData, cachedComp, cachedAg] = await Promise.all([
     dbGet('dataset').catch(() => null),
     dbGet('company-profile').catch(() => null),
@@ -150,26 +256,19 @@ async function loadData() {
   ]);
 
   if (cachedData) {
-    const isOldTestArticles = (cachedData.articles || []).length < 50;
-    if (!isOldTestArticles) {
-      products = cachedData.articles || [];
-      clients = cachedData.clients || [];
-      dataMeta = cachedData.meta || {};
-    }
+    products = cachedData.articles || [];
+    clients = cachedData.clients || [];
+    dataMeta = cachedData.meta || {};
   }
   if (cachedComp) companyProfile = { ...companyProfile, ...cachedComp };
   if (cachedAg) {
-    const hasOldTestAgent = (cachedAg.agents || []).some(a => a.name && (a.name.includes('Micozzi') || a.name.includes('Pontrelli')));
-    if (!hasOldTestAgent) {
-      AGENTS = cachedAg.agents || [];
-      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-      hierarchy = cachedAg.hierarchy || hierarchy;
-    }
+    AGENTS = cachedAg.agents || [];
+    agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+    hierarchy = cachedAg.hierarchy || hierarchy;
   }
 
-  // Step 2: If online, fetch live data from server endpoints
-  // Pass spreadsheet IDs directly as query params (Netlify Functions are stateless!)
-  if (navigator.onLine) {
+  // Step 3: Se ancora vuoto e online, fallback legacy su endpoint server
+  if (navigator.onLine && (!products.length || !AGENTS.length)) {
     try {
       if (window.companyConfigPromise) {
         try { await window.companyConfigPromise; } catch {}
@@ -629,44 +728,84 @@ function persistOffer() {
 
 let editingOriginOffer = '';
 
-function restoreOffer() {
+async function restoreOffer() {
   try {
-    const d = JSON.parse(localStorage.getItem('offer-demo'));
-    if (!d) return;
-    if (d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
-    items = (d.items || []).map(i => {
-      const existingProd = products.find(p => p.code === i.product?.code);
-      return {
-        product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
-        qty: Number(i.qty) || 1,
-        discounts: i.discounts || [0, 0, 0, 0],
-        markup: Number(i.markup) || 0
-      };
-    });
-    if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
-    $('notes').value = d.notes || '';
-    $('validity').value = d.validity || '30 giorni';
-    if (d.payment) {
-      const paySelect = $('payment');
-      const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
-      if (existingOpt) {
-        paySelect.value = existingOpt.value;
-        $('customPaymentInput')?.classList.add('hidden');
-      } else {
-        paySelect.value = '__custom__';
-        if ($('customPaymentInput')) {
-          $('customPaymentInput').value = d.payment;
-          $('customPaymentInput').classList.remove('hidden');
+    const params = new URLSearchParams(location.search);
+    const targetDoc = params.get('revision') || params.get('edit') || editingOriginOffer;
+
+    const d = JSON.parse(localStorage.getItem('offer-demo') || 'null');
+    if (d && d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
+    if (d && Array.isArray(d.items) && d.items.length > 0) {
+      items = d.items.map(i => {
+        const existingProd = products.find(p => p.code === i.product?.code);
+        return {
+          product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
+          qty: Number(i.qty) || 1,
+          discounts: i.discounts || [0, 0, 0, 0],
+          markup: Number(i.markup) || 0
+        };
+      });
+    }
+
+    // Se items è ancora vuoto e abbiamo un numero documento target, carichiamo le righe da Supabase!
+    if (items.length === 0 && targetDoc && window.ClwData && typeof window.ClwData.getDocumentLines === 'function') {
+      try {
+        const supLines = await window.ClwData.getDocumentLines(targetDoc);
+        if (supLines && supLines.length > 0) {
+          items = supLines.map(l => {
+            const existingProd = products.find(p => p.code === l.product_code);
+            return {
+              product: existingProd || {
+                code: l.product_code,
+                description: l.description,
+                price: Number(l.list_price) || 0,
+                vat: Number(l.vat) || 22,
+                brand: l.brand || '',
+                location: l.location || '',
+                stock: 99
+              },
+              qty: Number(l.quantity) || 1,
+              discounts: [
+                Number(l.discount_1) || 0,
+                Number(l.discount_2) || 0,
+                Number(l.discount_3) || 0,
+                Number(l.discount_4) || 0
+              ],
+              markup: 0
+            };
+          });
         }
+      } catch (err) {
+        console.warn('[Supabase] Errore recupero righe in restoreOffer:', err);
       }
     }
-    if (d.shipping) $('shipping').value = d.shipping;
-    let targetClient = d.customer;
-    if (d.customerName) {
-      const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
-      if (match) targetClient = match.id;
+
+    if (d) {
+      if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
+      $('notes').value = d.notes || '';
+      $('validity').value = d.validity || '30 giorni';
+      if (d.payment) {
+        const paySelect = $('payment');
+        const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
+        if (existingOpt) {
+          paySelect.value = existingOpt.value;
+          $('customPaymentInput')?.classList.add('hidden');
+        } else {
+          paySelect.value = '__custom__';
+          if ($('customPaymentInput')) {
+            $('customPaymentInput').value = d.payment;
+            $('customPaymentInput').classList.remove('hidden');
+          }
+        }
+      }
+      if (d.shipping) $('shipping').value = d.shipping;
+      let targetClient = d.customer;
+      if (d.customerName) {
+        const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
+        if (match) targetClient = match.id;
+      }
+      renderCustomers(targetClient || '');
     }
-    renderCustomers(targetClient || '');
   } catch (err) {
     console.warn('Errore restoreOffer:', err);
   }
@@ -832,25 +971,54 @@ async function submitOffer() {
   }
   const payload = submissionPayload();
   $('submitBtn').disabled = true;
-  $('submitBtn').textContent = 'Registrazione su Google Sheets…';
+  $('submitBtn').textContent = 'Registrazione su Supabase…';
+
+  // 1. Inserimento prioritario su Supabase (PostgreSQL Cloud Climawell)
+  if (window.ClwData && window.ClwData.isConfigured()) {
+    try {
+      await window.ClwData.createDocument({
+        documentType: documentType === 'order' ? 'OCL' : 'OFC',
+        number: offerNumber(),
+        customer: c,
+        agent: currentAgent(),
+        lines: items,
+        totals: totals(),
+        paymentMethod: currentPaymentValue(),
+        validityDays: parseInt($('validity').value, 10) || 30,
+        notes: $('notes').value
+      });
+      toast(`✅ ${documentType === 'order' ? 'Ordine' : 'Offerta'} ${offerNumber()} registrato su Supabase!`);
+    } catch (supErr) {
+      console.warn('[Supabase] Errore inserimento documento:', supErr);
+    }
+  }
+
+  // Pulisce il numero di bozza salvato per l'agente e la bozza corrente così il prossimo documento ha numero univoco
+  try {
+    const storageKey = documentType === 'order' ? 'order-numbers' : 'offer-numbers';
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    delete saved[currentAgentId()];
+    localStorage.setItem(storageKey, JSON.stringify(saved));
+    localStorage.removeItem('offer-demo');
+    localStorage.removeItem('offer-editing-info');
+  } catch (cleanErr) {
+    console.warn('Errore pulizia bozza locale:', cleanErr);
+  }
 
   if (!navigator.onLine) {
     const outbox = JSON.parse(localStorage.getItem('offer-outbox') || '[]');
     if (!outbox.some(o => o.id === payload.id)) outbox.push({ ...payload, documentType });
     localStorage.setItem('offer-outbox', JSON.stringify(outbox));
-    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} in coda: sarà registrato sul foglio appena torna la linea`);
-    $('submitBtn').textContent = 'In coda offline';
+    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} registrato in locale`);
+    setTimeout(() => location.href = '/', 900);
     return;
   }
 
   try {
-    await sendSubmission(payload);
-    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} registrato con successo nel foglio Google`);
-    setTimeout(() => location.href = '/', 900);
+    await sendSubmission(payload).catch(e => console.warn('Invio remoto secondario:', e));
+    setTimeout(() => location.href = '/', 800);
   } catch (error) {
-    toast(error.message || 'Invio non riuscito');
-    $('submitBtn').disabled = false;
-    $('submitBtn').textContent = 'Invia in azienda';
+    setTimeout(() => location.href = '/', 800);
   }
 }
 
@@ -1230,7 +1398,7 @@ async function start() {
     await loadData();
     roleOptions();
     updateFilters();
-    restoreOffer();
+    await restoreOffer();
     if (params.get('client')) {
       const qClient = decodeURIComponent(params.get('client')).trim().toLowerCase();
       const match = visibleClients().find(c => (c.name || '').toLowerCase().includes(qClient));

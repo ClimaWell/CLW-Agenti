@@ -796,6 +796,10 @@
   <!-- Leaflet MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
+  <!-- Supabase JS & Adapter Climawell -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabaseClient.js"></script>
+
   <script>
     const $ = id => document.getElementById(id);
     const toast = msg => {
@@ -830,8 +834,8 @@
       if (typeof c.isCompany === 'boolean' && c.category && c.promoCluster) {
         return c;
       }
-      const vat = String(c.vatNumber || c.vat || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      const cf = String(c.taxCode || c.cf || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const vat = String(c.vat_number || c.vatNumber || c.vat || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      const cf = String(c.tax_code || c.taxCode || c.cf || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const nm = String(c.name || '').toUpperCase();
       const act = String(c.activity || '').toUpperCase();
       const tp = String(c.type || '').toUpperCase();
@@ -1735,67 +1739,134 @@
       renderMapMarkers();
     }
 
+    function openDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('offerte-agenti', 2);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbGet(key) {
+      try {
+        const db = await openDb();
+        return new Promise((resolve) => {
+          if (!db.objectStoreNames.contains('data')) return resolve(null);
+          const tx = db.transaction('data', 'readonly');
+          const req = tx.objectStore('data').get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        });
+      } catch {
+        return null;
+      }
+    }
+
     // Setup Agent Selector and Session
     async function setupSessionAndData() {
+      // 1. Session user
       try {
-        const meRes = await fetch('/api/session', {
-          headers: {
-            'accept': 'application/json',
-            ...(localStorage.getItem('oa_session_token') ? { 'Authorization': 'Bearer ' + localStorage.getItem('oa_session_token') } : {})
-          }
-        });
-
-        if (meRes.ok) {
-          const d = await meRes.json();
-          currentUser = d.user;
-        } else {
-          const cached = localStorage.getItem('oa_session_user');
+        if (window.ClwData && typeof window.ClwData.getCurrentUser === 'function') {
+          currentUser = window.ClwData.getCurrentUser();
+        }
+        if (!currentUser) {
+          const cached = localStorage.getItem('clw_current_user') || localStorage.getItem('oa_session_user');
           if (cached) currentUser = JSON.parse(cached);
         }
       } catch (e) {
-        const cached = localStorage.getItem('oa_session_user');
-        if (cached) currentUser = JSON.parse(cached);
+        console.warn('Errore lettura utente:', e);
       }
 
-      // Fetch all agents
+      // 2. Carica Agenti da Supabase (o IndexedDB fallback)
       try {
-        const agRes = await fetch('/api/agents');
-        const agData = await agRes.json();
-        if (agData && agData.agents) {
-          allAgents = agData.agents;
+        if (window.ClwData && typeof window.ClwData.getAgents === 'function') {
+          const ags = await window.ClwData.getAgents();
+          if (Array.isArray(ags) && ags.length > 0) {
+            allAgents = ags;
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Errore caricamento agenti Supabase:', e);
+      }
+      if (!allAgents.length) {
+        const idb = await dbGet('agents-data');
+        if (idb && idb.agents) allAgents = idb.agents;
+      }
 
-      // Fetch all customers
+      // 3. Carica Clienti da Supabase (o IndexedDB fallback)
       try {
-        const custRes = await fetch('/api/customers');
-        const custData = await custRes.json();
-        if (custData && custData.customers) {
-          allCustomers = custData.customers;
+        if (window.ClwData && typeof window.ClwData.getCustomers === 'function') {
+          const custs = await window.ClwData.getCustomers();
+          if (Array.isArray(custs) && custs.length > 0) {
+            allCustomers = custs.map(c => ({
+              id: c.code || c.id,
+              code: c.code || c.id,
+              name: c.name,
+              vat_number: c.vat_number || c.vat || '',
+              vatNumber: c.vat_number || c.vat || '',
+              tax_code: c.tax_code || c.cf || '',
+              taxCode: c.tax_code || c.cf || '',
+              address: c.address || '',
+              city: c.city || '',
+              province: c.province || '',
+              postalCode: c.postal_code || '',
+              phone: c.phone || '',
+              mobile: c.mobile || '',
+              email: c.email || '',
+              agent_code: c.agent_code || c.agentId || '',
+              agentId: c.agent_code || c.agentId || '',
+              sourceAgent: c.agent_code || c.sourceAgent || '',
+              isCompany: c.is_company,
+              category: c.category,
+              promoCluster: c.promo_cluster
+            }));
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Errore caricamento clienti Supabase:', e);
+      }
+      if (!allCustomers.length) {
+        const idbDataset = await dbGet('dataset');
+        if (idbDataset && idbDataset.clients) {
+          allCustomers = idbDataset.clients;
+        }
+      }
 
-      // Populate Agent Selector Dropdown
+      // 4. Popola il dropdown di selezione agente con tutte le figure della rete
       const sel = $('agentSelector');
       sel.innerHTML = '';
 
-      if (currentUser?.role === 'admin') {
-        const optAll = document.createElement('option');
-        optAll.value = 'ALL';
-        optAll.textContent = '🌟 Tutta la Rete Commerciale Climawell';
-        sel.appendChild(optAll);
+      const optAll = document.createElement('option');
+      optAll.value = 'ALL';
+      optAll.textContent = '🌟 Tutta la Rete Commerciale Climawell';
+      sel.appendChild(optAll);
 
-        allAgents.forEach(a => {
+      if (allAgents && allAgents.length > 0) {
+        const sortedAgents = [...allAgents].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        sortedAgents.forEach(a => {
+          const code = a.code || a.id;
+          const name = a.name || `Agente ${code}`;
           const opt = document.createElement('option');
-          opt.value = a.code || a.id;
-          opt.textContent = `${a.code || a.id} - ${a.name}`;
+          opt.value = String(code);
+          opt.textContent = `${code} - ${name}`;
           sel.appendChild(opt);
         });
+      }
+
+      // Se l'utente è un agente specifico (non admin), imposta la selezione iniziale
+      if (currentUser && currentUser.role !== 'admin' && currentUser.agentCode) {
+        const myAg = String(currentUser.agentCode);
+        const match = Array.from(sel.options).find(o => o.value === myAg);
+        if (match) {
+          sel.value = myAg;
+          selectedAgentCode = myAg;
+        } else {
+          sel.value = 'ALL';
+          selectedAgentCode = 'ALL';
+        }
       } else {
-        const optMy = document.createElement('option');
-        optMy.value = currentUser?.agentCode || 'MY';
-        optMy.textContent = `${currentUser?.agentCode || ''} - ${currentUser?.name || 'I Miei Clienti'}`;
-        sel.appendChild(optMy);
+        sel.value = 'ALL';
+        selectedAgentCode = 'ALL';
       }
 
       sel.onchange = () => {
@@ -1810,11 +1881,11 @@
     function filterCustomersByAgent() {
       if (selectedAgentCode === 'ALL') {
         filteredCustomers = allCustomers;
-      } else if (selectedAgentCode === 'MY' || !selectedAgentCode) {
-        const ag = currentUser?.agentCode;
-        filteredCustomers = allCustomers.filter(c => String(c.agentId) === String(ag) || String(c.sourceAgent) === String(ag));
       } else {
-        filteredCustomers = allCustomers.filter(c => String(c.agentId) === String(selectedAgentCode) || String(c.sourceAgent) === String(selectedAgentCode));
+        filteredCustomers = allCustomers.filter(c => {
+          const ag = String(c.agent_code || c.agentId || c.sourceAgent || '').trim();
+          return ag === String(selectedAgentCode).trim();
+        });
       }
 
       renderMapMarkers();

@@ -1000,16 +1000,16 @@
     let allOffers = [];
     let allCustomers = [];
     let companyProfile = {
-      displayName: 'Pascal Cosmesi International',
-      companyName: 'Pascal Milano',
+      displayName: 'Climawell',
+      companyName: 'Climawell',
       address: 'Via F.lli Bandiera 24',
       postalCode: '50100',
       city: 'Sovigliana',
       province: 'FI',
       phone: '055/42.89.074',
       vatNumber: '1234567890',
-      website: 'www.pascalmilano.it',
-      email: 'info@pascalmilano.it'
+      website: 'www.climawell.it',
+      email: 'info@climawell.it'
     };
     let currentFilter = 'all';
 
@@ -1458,7 +1458,7 @@
       }
     }
 
-    // Print DDT / Bolla di Consegna (Conforme D.P.R. 472/1996 - Modello Pascal Cosmesi International)
+    // Print DDT / Bolla di Consegna (Conforme D.P.R. 472/1996 - Modello Climawell)
     function openPrintDdt(orderId) {
       try {
         const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
@@ -1488,14 +1488,14 @@
           <div>${clientCityZip}</div>
         `;
 
-        // Company info (Pascal Cosmesi International)
-        const compName = companyProfile.displayName || companyProfile.companyName || 'Pascal Cosmesi International';
+        // Company info (Climawell)
+        const compName = companyProfile.displayName || companyProfile.companyName || 'Climawell';
         const compAddr = companyProfile.address || 'Via F.lli Bandiera 24';
         const compCapCity = `${companyProfile.postalCode || '50100'} ${companyProfile.city || 'Sovigliana'} (${companyProfile.province || 'FI'})`;
         const compTel = companyProfile.phone || '055/42.89.074';
         const compVat = companyProfile.vatNumber || '1234567890';
-        const compWeb = companyProfile.website || 'www.pascalmilano.it';
-        const compEmail = companyProfile.email || 'info@pascalmilano.it';
+        const compWeb = companyProfile.website || 'www.climawell.it';
+        const compEmail = companyProfile.email || 'info@climawell.it';
 
         // DDT metadata
         const ddtNum = ord.ddt_number || `DDT-${new Date().getFullYear()}-${(ord.number || '').slice(-4)}`;
@@ -1591,11 +1591,11 @@
           <div class="ddt-sheet">
             <!-- TOP HEADER SECTION -->
             <div class="ddt-header-section">
-              <!-- SENDER PASCAL (LEFT) & CLIENT/DESTINATION (RIGHT) -->
+              <!-- SENDER CLIMAWELL (LEFT) & CLIENT/DESTINATION (RIGHT) -->
               <div class="ddt-top-row">
                 <div class="ddt-sender-box">
-                  <div class="ddt-brand-logo">PASCAL</div>
-                  <div class="ddt-brand-sub">COSMESI INTERNATIONAL</div>
+                  <div class="ddt-brand-logo">CLIMAWELL</div>
+                  <div class="ddt-brand-sub">SISTEMI TERMOIDRAULICI & CLIMATIZZAZIONE</div>
                   <div class="ddt-sender-info">
                     <strong>${compName}</strong><br>
                     ${compAddr}<br>
