@@ -295,6 +295,26 @@
     },
 
     /**
+     * Recupera le righe dettagliate di un'offerta o ordine da Supabase
+     */
+    async getDocumentLines(documentNumber) {
+      const client = initClient();
+      if (client && documentNumber) {
+        try {
+          const { data, error } = await client
+            .from('document_lines')
+            .select('*')
+            .eq('document_number', documentNumber)
+            .order('line_number', { ascending: true });
+          if (!error && data && data.length > 0) return data;
+        } catch (err) {
+          console.warn('[Supabase] Errore document_lines:', err.message);
+        }
+      }
+      return [];
+    },
+
+    /**
      * Recupera gli ordini da preparare (per il magazziniere)
      */
     async getWarehouseOrders() {

@@ -723,44 +723,84 @@ function persistOffer() {
 
 let editingOriginOffer = '';
 
-function restoreOffer() {
+async function restoreOffer() {
   try {
-    const d = JSON.parse(localStorage.getItem('offer-demo'));
-    if (!d) return;
-    if (d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
-    items = (d.items || []).map(i => {
-      const existingProd = products.find(p => p.code === i.product?.code);
-      return {
-        product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
-        qty: Number(i.qty) || 1,
-        discounts: i.discounts || [0, 0, 0, 0],
-        markup: Number(i.markup) || 0
-      };
-    });
-    if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
-    $('notes').value = d.notes || '';
-    $('validity').value = d.validity || '30 giorni';
-    if (d.payment) {
-      const paySelect = $('payment');
-      const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
-      if (existingOpt) {
-        paySelect.value = existingOpt.value;
-        $('customPaymentInput')?.classList.add('hidden');
-      } else {
-        paySelect.value = '__custom__';
-        if ($('customPaymentInput')) {
-          $('customPaymentInput').value = d.payment;
-          $('customPaymentInput').classList.remove('hidden');
+    const params = new URLSearchParams(location.search);
+    const targetDoc = params.get('revision') || params.get('edit') || editingOriginOffer;
+
+    const d = JSON.parse(localStorage.getItem('offer-demo') || 'null');
+    if (d && d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
+    if (d && Array.isArray(d.items) && d.items.length > 0) {
+      items = d.items.map(i => {
+        const existingProd = products.find(p => p.code === i.product?.code);
+        return {
+          product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
+          qty: Number(i.qty) || 1,
+          discounts: i.discounts || [0, 0, 0, 0],
+          markup: Number(i.markup) || 0
+        };
+      });
+    }
+
+    // Se items è ancora vuoto e abbiamo un numero documento target, carichiamo le righe da Supabase!
+    if (items.length === 0 && targetDoc && window.ClwData && typeof window.ClwData.getDocumentLines === 'function') {
+      try {
+        const supLines = await window.ClwData.getDocumentLines(targetDoc);
+        if (supLines && supLines.length > 0) {
+          items = supLines.map(l => {
+            const existingProd = products.find(p => p.code === l.product_code);
+            return {
+              product: existingProd || {
+                code: l.product_code,
+                description: l.description,
+                price: Number(l.list_price) || 0,
+                vat: Number(l.vat) || 22,
+                brand: l.brand || '',
+                location: l.location || '',
+                stock: 99
+              },
+              qty: Number(l.quantity) || 1,
+              discounts: [
+                Number(l.discount_1) || 0,
+                Number(l.discount_2) || 0,
+                Number(l.discount_3) || 0,
+                Number(l.discount_4) || 0
+              ],
+              markup: 0
+            };
+          });
         }
+      } catch (err) {
+        console.warn('[Supabase] Errore recupero righe in restoreOffer:', err);
       }
     }
-    if (d.shipping) $('shipping').value = d.shipping;
-    let targetClient = d.customer;
-    if (d.customerName) {
-      const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
-      if (match) targetClient = match.id;
+
+    if (d) {
+      if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
+      $('notes').value = d.notes || '';
+      $('validity').value = d.validity || '30 giorni';
+      if (d.payment) {
+        const paySelect = $('payment');
+        const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
+        if (existingOpt) {
+          paySelect.value = existingOpt.value;
+          $('customPaymentInput')?.classList.add('hidden');
+        } else {
+          paySelect.value = '__custom__';
+          if ($('customPaymentInput')) {
+            $('customPaymentInput').value = d.payment;
+            $('customPaymentInput').classList.remove('hidden');
+          }
+        }
+      }
+      if (d.shipping) $('shipping').value = d.shipping;
+      let targetClient = d.customer;
+      if (d.customerName) {
+        const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
+        if (match) targetClient = match.id;
+      }
+      renderCustomers(targetClient || '');
     }
-    renderCustomers(targetClient || '');
   } catch (err) {
     console.warn('Errore restoreOffer:', err);
   }
@@ -1341,7 +1381,7 @@ async function start() {
     await loadData();
     roleOptions();
     updateFilters();
-    restoreOffer();
+    await restoreOffer();
     if (params.get('client')) {
       const qClient = decodeURIComponent(params.get('client')).trim().toLowerCase();
       const match = visibleClients().find(c => (c.name || '').toLowerCase().includes(qClient));

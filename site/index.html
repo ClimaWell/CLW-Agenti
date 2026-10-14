@@ -1052,7 +1052,7 @@
               </div>
               <div class="item-total-group">
                 <span class="item-total">${totalStr}</span>
-                <small class="item-storage-note">☁️ Registrato su Sheets</small>
+                <small class="item-storage-note" style="color:#059669; font-weight:700;">🟢 Supabase & Plus 2000</small>
               </div>
             </div>
           </div>
@@ -1189,7 +1189,7 @@
       $('detailModal').showModal();
     }
 
-    function openOfferInEditor(offerNumber, asRevision = true) {
+    async function openOfferInEditor(offerNumber, asRevision = true) {
       const offer = allPractices.find(p => p.number === offerNumber || p.id === offerNumber);
       if (!offer) {
         alert(`Offerta ${offerNumber} non trovata nel registro`);
@@ -1197,6 +1197,35 @@
       }
 
       let lines = offer.payload?.lines || [];
+
+      // 1. Prova a recuperare le righe direttamente da Supabase document_lines
+      if (!lines.length && window.ClwData && typeof window.ClwData.getDocumentLines === 'function') {
+        try {
+          const supLines = await window.ClwData.getDocumentLines(offer.number || offerNumber);
+          if (supLines && supLines.length > 0) {
+            lines = supLines.map(l => ({
+              code: l.product_code,
+              description: l.description,
+              listPrice: Number(l.list_price) || 0,
+              quantity: Number(l.quantity) || 1,
+              discounts: [
+                Number(l.discount_1) || 0,
+                Number(l.discount_2) || 0,
+                Number(l.discount_3) || 0,
+                Number(l.discount_4) || 0
+              ],
+              vat: Number(l.vat) || 22,
+              brand: l.brand || '',
+              location: l.location || '',
+              netPrice: Number(l.net_price) || 0
+            }));
+          }
+        } catch (e) {
+          console.warn('[Supabase] Errore recupero righe per modifica:', e);
+        }
+      }
+
+      // 2. Fallback su localStorage
       if (!lines.length) {
         try {
           const loc = JSON.parse(localStorage.getItem(`submission-${offerNumber}`) || '{}');
@@ -1206,11 +1235,11 @@
 
       const offerState = {
         originOfferNumber: offer.number,
-        customer: offer.customer_id || '',
+        customer: offer.customer_code || offer.customer_id || '',
         customerName: offer.customer_name || offer.customerName || '',
         notes: offer.payload?.notes || (typeof offer.notes === 'string' && !offer.notes.startsWith('{') ? offer.notes : ''),
-        validity: offer.payload?.validity || '30 giorni',
-        payment: offer.payload?.payment || '',
+        validity: offer.payload?.validity || (offer.validity_days ? `${offer.validity_days} giorni` : '30 giorni'),
+        payment: offer.payload?.payment || offer.payment_method || '',
         shipping: offer.payload?.shipping || '',
         role: offer.agent_code || currentUser?.agentCode || 'AG01',
         isRevision: asRevision,
@@ -1218,12 +1247,12 @@
           product: {
             code: l.code,
             description: l.description,
-            price: Number(l.listPrice) || 0,
+            price: Number(l.listPrice || l.price) || 0,
             vat: Number(l.vat) || 22,
             brand: l.brand || '',
             stock: 99
           },
-          qty: Number(l.quantity) || 1,
+          qty: Number(l.quantity || l.qty) || 1,
           discounts: l.discounts || [0, 0, 0, 0],
           markup: Number(l.markup) || 0
         }))
@@ -1234,7 +1263,7 @@
         originOfferNumber: offer.number,
         isRevision: asRevision,
         customerName: offer.customer_name,
-        customerId: offer.customer_id
+        customerId: offer.customer_code || offer.customer_id
       }));
 
       window.location.href = `/offerta?${asRevision ? 'revision' : 'edit'}=${encodeURIComponent(offer.number)}`;

@@ -184,7 +184,8 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.85);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(4px);
       z-index: 100;
       flex-direction: column;
       align-items: center;
@@ -194,26 +195,86 @@
     #scannerModal.active { display: flex; }
     .scanner-box {
       width: 100%;
-      max-width: 440px;
+      max-width: 460px;
       background: #fff;
-      border-radius: 16px;
+      border-radius: 20px;
       overflow: hidden;
       position: relative;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
     }
-    #reader { width: 100%; }
+    .scanner-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      background: var(--navy);
+      color: #fff;
+    }
+    .scanner-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .scanner-close {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 10;
-      background: rgba(0,0,0,0.6);
+      background: rgba(255,255,255,0.15);
       color: #fff;
       border: none;
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .scanner-close:hover { background: rgba(255,255,255,0.3); }
+    #reader {
+      width: 100%;
+      min-height: 240px;
+      background: #0f172a;
+    }
+    .scanner-footer {
+      padding: 14px 16px;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .scanner-perm-box {
+      display: none;
+      padding: 16px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      margin: 12px;
+      color: #92400e;
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    .scanner-perm-box.show { display: block; }
+    .scanner-perm-title {
+      font-weight: 800;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      color: #b45309;
+    }
+    .scanner-perm-steps {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .scanner-perm-steps li {
+      margin-bottom: 4px;
     }
 
     /* Location Badges */
@@ -640,6 +701,43 @@
 
   </main>
 
+  <!-- Scanner Modal Viewport & Permission Assistant -->
+  <div id="scannerModal">
+    <div class="scanner-box">
+      <div class="scanner-header">
+        <h3><span>📷</span> Scansione Codice a Barre / EAN</h3>
+        <button id="btnCloseScanner" class="scanner-close" title="Chiudi scanner">✕</button>
+      </div>
+
+      <!-- Area Video Html5Qrcode -->
+      <div id="reader"></div>
+
+      <!-- Box Avviso Permessi Negati con guida passo-passo -->
+      <div id="scannerPermNotice" class="scanner-perm-box">
+        <div class="scanner-perm-title">
+          <span>🔒</span> Accesso Fotocamera Non Consentito
+        </div>
+        <p style="margin:0 0 8px;">Il browser ha bloccato l'apertura automatica della fotocamera. Come risolvere:</p>
+        <ol class="scanner-perm-steps">
+          <li>Tocca l'icona con le <strong>impostazioni / lucchetto</strong> 🔒 a sinistra nella barra degli indirizzi in alto.</li>
+          <li>Apri <strong>"Autorizzazioni"</strong> o <strong>"Impostazioni sito"</strong>.</li>
+          <li>Imposta la <strong>Fotocamera su "Consenti"</strong>.</li>
+          <li>Ricarica la pagina oppure clicca su <strong>Riprova Fotocamera</strong>.</li>
+        </ol>
+      </div>
+
+      <div class="scanner-footer">
+        <input type="file" id="barcodeFileCapture" accept="image/*" capture="environment" style="display:none;">
+        <button type="button" id="btnCaptureNative" class="btn-primary" style="background:var(--navy); font-size:0.95rem; width:100%; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <span>📸</span> Scatta Foto Barcode (Fotocamera Nativa)
+        </button>
+        <button type="button" id="btnRetryCamera" class="btn-secondary" style="font-size:0.85rem; width:100%;">
+          🔄 Riprova Fotocamera Live
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Bottom Navigation Bar -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-tab="tabPicking">
@@ -710,33 +808,90 @@
       };
     });
 
-    // --- Barcode Scanner Logic ---
-    function openScanner(target) {
+    // --- Barcode Scanner Logic Avanzato ---
+    const permNotice = document.getElementById('scannerPermNotice');
+    const fileCaptureInput = document.getElementById('barcodeFileCapture');
+
+    async function openScanner(target) {
       currentScanTarget = target;
       document.getElementById('scannerModal').classList.add('active');
+      permNotice.classList.remove('show');
+
       if (!html5QrScanner) {
         html5QrScanner = new Html5Qrcode("reader");
       }
-      html5QrScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 180 } },
-        (decodedText) => {
-          onBarcodeRead(decodedText);
-          closeScanner();
-        },
-        () => {} // scan failure frame
-      ).catch(err => {
-        toast('Errore fotocamera: ' + err);
-        closeScanner();
-      });
-    }
 
-    function closeScanner() {
-      document.getElementById('scannerModal').classList.remove('active');
-      if (html5QrScanner && html5QrScanner.isScanning) {
-        html5QrScanner.stop().catch(() => {});
+      try {
+        if (html5QrScanner.isScanning) {
+          await html5QrScanner.stop();
+        }
+        await html5QrScanner.start(
+          { facingMode: "environment" },
+          { 
+            fps: 15,
+            qrbox: { width: 280, height: 180 },
+            aspectRatio: 1.333334
+          },
+          (decodedText) => {
+            onBarcodeRead(decodedText);
+            closeScanner();
+          },
+          () => {} // frame non decodificato
+        );
+      } catch (err) {
+        console.warn('Errore apertura fotocamera live:', err);
+        const errStr = String(err || '').toLowerCase();
+        if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied')) {
+          permNotice.classList.add('show');
+          toast('⚠️ Permesso fotocamera non concesso. Segui le istruzioni o usa lo scatto nativo.');
+        } else {
+          toast('Avviso fotocamera: ' + (err.message || err));
+        }
       }
     }
+
+    async function closeScanner() {
+      document.getElementById('scannerModal').classList.remove('active');
+      permNotice.classList.remove('show');
+      if (html5QrScanner && html5QrScanner.isScanning) {
+        try {
+          await html5QrScanner.stop();
+        } catch {}
+      }
+    }
+
+    // Fallback Scatto Foto con Fotocamera Nativa (funziona sempre senza permessi browser WebRTC)
+    document.getElementById('btnCaptureNative').onclick = () => {
+      fileCaptureInput.click();
+    };
+
+    fileCaptureInput.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      toast('Elaborazione barcode da foto in corso… ⏳');
+      try {
+        if (!html5QrScanner) {
+          html5QrScanner = new Html5Qrcode("reader");
+        }
+        const decodedText = await html5QrScanner.scanFile(file, true);
+        if (decodedText) {
+          toast('✅ Codice rilevato con successo!');
+          onBarcodeRead(decodedText);
+          closeScanner();
+        }
+      } catch (scanErr) {
+        console.warn('Impossibile decodificare barcode da immagine:', scanErr);
+        toast('❌ Barcode non rilevato nella foto. Inquadra più da vicino con buona luce.');
+        soundBeep(false);
+      } finally {
+        fileCaptureInput.value = '';
+      }
+    };
+
+    document.getElementById('btnRetryCamera').onclick = () => {
+      openScanner(currentScanTarget);
+    };
 
     document.getElementById('btnCloseScanner').onclick = closeScanner;
     document.getElementById('btnScanPicking').onclick = () => openScanner('picking');
