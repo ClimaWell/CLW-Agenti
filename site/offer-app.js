@@ -4,28 +4,28 @@ let agentById = {};
 let hierarchy = {};
 let products = [], clients = [], dataMeta = {}, items = [], catalogLimit = 80;
 let companyProfile = {
-  companyName: '',
-  displayName: '',
-  vatNumber: '',
-  taxCode: '',
-  address: '',
-  postalCode: '',
-  city: '',
-  province: '',
+  companyName: 'Climawell',
+  displayName: 'Climawell',
+  vatNumber: '04732490489',
+  taxCode: '04732490489',
+  address: 'Via delle Tre Pietre 2/C',
+  postalCode: '50149',
+  city: 'Firenze',
+  province: 'FI',
   country: 'Italia',
-  email: '',
+  email: 'info@climawell.it',
   pec: '',
-  phone: '',
-  website: '',
-  sdiCode: '',
+  phone: '055-4289074',
+  website: 'www.climawell.it',
+  sdiCode: '0000000',
   iban: '',
   logoFileName: '',
-  footerText: '',
+  footerText: '© Climawell — Sistema Gestionale Rete Vendite',
   legalNotes: '',
   currency: 'EUR',
   defaultVat: 22,
   offerValidityDays: 30,
-  ordersEmail: ''
+  ordersEmail: 'info@climawell.it'
 };
 
 let documentType = new URLSearchParams(location.search).get('type') === 'order' ? 'order' : 'offer';
@@ -187,6 +187,7 @@ async function loadData() {
         agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
         hierarchy = {};
         await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
+        try { localStorage.setItem('oa_cached_agents', JSON.stringify(AGENTS)); } catch (_) {}
         roleOptions();
       }
 
@@ -308,9 +309,9 @@ function companyContactLine() {
 }
 
 function renderCompanyProfile() {
-  $('companyName').textContent = companyProfile.companyName || companyProfile.displayName || 'Azienda';
-  $('companyAddress').textContent = companyAddressLine() || 'Indirizzo aziendale da completare nel foglio';
-  $('companyContacts').textContent = companyContactLine();
+  $('companyName').textContent = companyProfile.companyName || companyProfile.displayName || 'Climawell';
+  $('companyAddress').textContent = companyAddressLine() || 'Via delle Tre Pietre 2/C - 50149 Firenze (FI)';
+  $('companyContacts').textContent = companyContactLine() || 'Tel. 055-4289074 · P. IVA 04732490489 · info@climawell.it';
   const validity = `${Number(companyProfile.offerValidityDays) || 30} giorni`;
   if ([...$('validity').options].some(o => o.value === validity)) $('validity').value = validity;
 }
@@ -1374,6 +1375,18 @@ async function start() {
   }
 
   bindEvents();
+
+  // Popolamento sincrono immediato da cache locale per non lasciare MAI la tendina agenti o il profilo aziendale vuoti
+  try {
+    const cachedAg = JSON.parse(localStorage.getItem('oa_cached_agents') || 'null');
+    if (cachedAg && Array.isArray(cachedAg) && cachedAg.length) {
+      AGENTS = cachedAg;
+      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+    }
+  } catch (_) {}
+  try { roleOptions(); } catch (_) {}
+  try { renderCompanyProfile(); } catch (_) {}
+
   $('syncLabel').textContent = 'Connessione a Supabase Live…';
 
   try {
