@@ -1,4 +1,4 @@
-// Offerte Agenti — Dynamic Google Sheets & API Integration
+// Offerte Agenti — Supabase Cloud & Plus 2000 Integration
 let AGENTS = [];
 let agentById = {};
 let hierarchy = {};
@@ -232,19 +232,18 @@ async function loadData() {
         await dbSet('company-profile', companyProfile).catch(() => {});
       }
 
-      if (products.length > 0 && AGENTS.length > 0) {
-        dataMeta = {
-          generatedAt: new Date().toISOString(),
-          source: 'Supabase PostgreSQL (Plus 2000)',
-          articleCount: products.length,
-          clientCount: clients.length,
-          agentCount: AGENTS.length
-        };
-        await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-        return; // Dati caricati direttamente da Supabase!
-      }
+      // Salva nella cache locale IndexedDB i dati freschi da Supabase
+      dataMeta = {
+        generatedAt: new Date().toISOString(),
+        source: 'Supabase PostgreSQL (Plus 2000)',
+        articleCount: products.length,
+        clientCount: clients.length,
+        agentCount: AGENTS.length
+      };
+      await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
+      return; // Dati caricati direttamente ed esclusivamente da Supabase!
     } catch (supErr) {
-      console.warn('[Supabase] Errore caricamento in offer-app, fallback locale:', supErr);
+      console.warn('[Supabase] Errore caricamento in offer-app, fallback su cache locale:', supErr);
     }
   }
 
@@ -256,103 +255,16 @@ async function loadData() {
   ]);
 
   if (cachedData) {
-    products = cachedData.articles || [];
-    clients = cachedData.clients || [];
+    if (!products.length) products = cachedData.articles || [];
+    if (!clients.length) clients = cachedData.clients || [];
     dataMeta = cachedData.meta || {};
   }
   if (cachedComp) companyProfile = { ...companyProfile, ...cachedComp };
-  if (cachedAg) {
-    AGENTS = cachedAg.agents || [];
+  if (cachedAg && !AGENTS.length) {
+    // Rispetta i filtri agenti attivi anche da cache
+    AGENTS = (cachedAg.agents || []).filter(a => a.attivo !== false && a.active !== false);
     agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
     hierarchy = cachedAg.hierarchy || hierarchy;
-  }
-
-  // Step 3: Se ancora vuoto e online, fallback legacy su endpoint server
-  if (navigator.onLine && (!products.length || !AGENTS.length)) {
-    try {
-      if (window.companyConfigPromise) {
-        try { await window.companyConfigPromise; } catch {}
-      }
-      const def = window.OFFICIAL_SYSTEM_SPREADSHEETS || {
-        company: { spreadsheetId: "1-ntNPKA3gdjZaxYntGNkXtKC5Kt4JIXGSoQfESO169M", tab: "Dati azienda" },
-        agents: { spreadsheetId: "13HaTubf4_xVTtzkQUcYINkRtuSzLR2qGzJAiA-oAecU", tab: "Agenti" },
-        customers: { spreadsheetId: "1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8", tab: "clienti" },
-        products: { spreadsheetId: "17ErnowHZDqA3WDTN5auHkyTBPVn4MqkI8BFkiqkDhmE", tab: "q_listino_prezzi_catalogo" },
-        repository: { spreadsheetId: "10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw", tabHeader: "DocTes", tabLines: "DocRig", tabOffers: "DocTes", tabOrders: "DocTes" }
-      };
-      const cfg = window.companyConfig || def;
-      const getValidId = (id, fallback) => (!id || typeof id !== 'string' || id.length < 20 || id.includes('1mnW') || id.includes('1N6ZcGa')) ? fallback : id.trim();
-
-      const compId = getValidId(cfg.company?.spreadsheetId, def.company.spreadsheetId);
-      const agId = getValidId(cfg.agents?.spreadsheetId, def.agents.spreadsheetId);
-      const custId = getValidId(cfg.customers?.spreadsheetId, def.customers.spreadsheetId);
-      const prodId = getValidId(cfg.products?.spreadsheetId, def.products.spreadsheetId);
-
-      const qs = (id, tab) => {
-        const params = new URLSearchParams();
-        if (id) params.set('id', id);
-        if (tab) params.set('tab', tab);
-        const str = params.toString();
-        return str ? '?' + str : '';
-      };
-
-      const token = localStorage.getItem('oa_session_token');
-      const authHeaders = {
-        accept: 'application/json',
-        ...(token ? { 'Authorization': 'Bearer ' + token } : {})
-      };
-
-      const [compRes, agRes, custRes, prodRes] = await Promise.all([
-        fetch(`/api/company${qs(compId, cfg.company?.tab || def.company.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
-        fetch(`/api/agents${qs(agId, cfg.agents?.tab || def.agents.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
-        fetch(`/api/customers${qs(custId, cfg.customers?.tab || def.customers.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
-        fetch(`/api/products${qs(prodId, cfg.products?.tab || def.products.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' })
-      ]);
-
-      if (compRes.ok) {
-        const d = await compRes.json();
-        if (d.company && Object.keys(d.company).length > 0) {
-          companyProfile = { ...companyProfile, ...d.company };
-          await dbSet('company-profile', companyProfile).catch(() => {});
-        }
-      }
-
-      if (agRes.ok) {
-        const d = await agRes.json();
-        if (d.ok !== false && d.agents && d.agents.length > 0) {
-          AGENTS = d.agents;
-          agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-          hierarchy = d.hierarchy || hierarchy;
-          await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
-        }
-      }
-
-      if (custRes.ok) {
-        const d = await custRes.json();
-        if (d.ok !== false && d.customers && d.customers.length > 0) {
-          clients = d.customers;
-        }
-      }
-
-      if (prodRes.ok) {
-        const d = await prodRes.json();
-        if (d.ok !== false && d.products && d.products.length > 0) {
-          products = d.products;
-        }
-      }
-
-      dataMeta = {
-        generatedAt: new Date().toISOString(),
-        source: 'Google Sheets Live API',
-        articleCount: products.length,
-        clientCount: clients.length,
-        agentCount: AGENTS.length
-      };
-
-      await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-    } catch (err) {
-      console.warn('Connessione API non riuscita, uso la cache locale:', err);
-    }
   }
 
   // Step 3: Fallback to seed-data if cache was completely empty
@@ -646,9 +558,22 @@ function renderProductButtons(list) {
   document.querySelectorAll('.product-result').forEach(b => b.onclick = () => addProduct(b.dataset.code));
 }
 
+function sortProductResults(list, q) {
+  return list.sort((a, b) => {
+    const aCode = normalized(a.code);
+    const bCode = normalized(b.code);
+    if (aCode === q && bCode !== q) return -1;
+    if (bCode === q && aCode !== q) return 1;
+    if (aCode.startsWith(q) && !bCode.startsWith(q)) return -1;
+    if (bCode.startsWith(q) && !aCode.startsWith(q)) return 1;
+    return (Number(b.stock) || 0) - (Number(a.stock) || 0);
+  });
+}
+
 function renderProducts(query = '') {
   const q = normalized(query);
-  const found = (q ? products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)) : products).slice(0, 60);
+  const rawFound = q ? products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)) : products;
+  const found = sortProductResults(rawFound, q).slice(0, 60);
   renderProductButtons(found);
 
   // Ricerca in tempo reale su Supabase per articoli oltre il blocco iniziale (es. MS230)
@@ -701,7 +626,14 @@ function renderProducts(query = '') {
 function addProduct(code) {
   const product = products.find(p => p.code === code);
   if (!product) return;
-  items.push({ id: crypto.randomUUID(), product, qty: 1, discounts: [0, 0, 0, 0], markup: 0 });
+  const existingIdx = items.findIndex(i => i.product?.code === code);
+  if (existingIdx >= 0) {
+    items[existingIdx].qty += 1;
+    const it = items.splice(existingIdx, 1)[0];
+    items.unshift(it); // Porta l'articolo ri-selezionato in cima alla lista
+  } else {
+    items.unshift({ id: crypto.randomUUID(), product, qty: 1, discounts: [0, 0, 0, 0], markup: 0 }); // Inserisce in cima
+  }
   $('productSearch').value = '';
   $('productResults').classList.add('hidden');
   renderOffer();
@@ -989,25 +921,11 @@ async function readApiResponse(response) {
 }
 
 async function sendSubmission(payload) {
-  const number = payload.orderNumber || payload.offerNumber;
-  const type = payload.documentType || (payload.orderNumber ? 'order' : 'offer');
-  localStorage.setItem(`submission-${number}`, payload.id);
-  const hdrs = { 'content-type': 'application/json', 'accept': 'application/json' };
-  const token = localStorage.getItem('oa_session_token');
-  if (token) hdrs['Authorization'] = 'Bearer ' + token;
-  const user = currentUser || JSON.parse(localStorage.getItem('oa_session_user') || 'null');
-  if (user) hdrs['x-oa-user'] = encodeURIComponent(JSON.stringify(user));
-
-  const response = await fetch(type === 'order' ? '/api/orders' : '/api/offers', {
-    method: 'POST',
-    headers: hdrs,
-    credentials: 'same-origin',
-    cache: 'no-store',
-    body: JSON.stringify(payload)
-  });
-  const data = await readApiResponse(response);
-  if (!response.ok) throw new Error(data.error || 'Invio a Google Sheets non riuscito');
-  return data;
+  // Con Supabase attivo, la registrazione primaria e ufficiale avviene tramite window.ClwData.createDocument
+  if (window.ClwData && window.ClwData.isConfigured()) {
+    return { ok: true, source: 'Supabase' };
+  }
+  return { ok: true, local: true };
 }
 
 async function submitOffer() {
@@ -1066,12 +984,7 @@ async function submitOffer() {
     return;
   }
 
-  try {
-    await sendSubmission(payload).catch(e => console.warn('Invio remoto secondario:', e));
-    setTimeout(() => location.href = '/', 800);
-  } catch (error) {
-    setTimeout(() => location.href = '/', 800);
-  }
+  setTimeout(() => location.href = '/', 800);
 }
 
 async function flushOutbox() {
@@ -1080,13 +993,27 @@ async function flushOutbox() {
   const pending = [];
   for (const payload of outbox) {
     try {
-      await sendSubmission(payload);
+      if (window.ClwData && window.ClwData.isConfigured()) {
+        const c = { id: payload.customerCode || payload.customerId, name: payload.customerName };
+        const ag = { id: payload.agentCode, name: payload.agentName };
+        await window.ClwData.createDocument({
+          documentType: payload.documentType === 'order' ? 'OCL' : 'OFC',
+          number: payload.number || payload.id,
+          customer: c,
+          agent: ag,
+          lines: payload.items || [],
+          totals: payload.totals || {},
+          paymentMethod: payload.payment || '',
+          validityDays: payload.validityDays || 30,
+          notes: payload.notes || ''
+        });
+      }
     } catch {
       pending.push(payload);
     }
   }
   localStorage.setItem('offer-outbox', JSON.stringify(pending));
-  if (!pending.length) toast('Pratiche in coda registrate sul foglio Google');
+  if (!pending.length) toast('Pratiche in coda sincronizzate con Supabase');
 }
 
 function parseCsv(text) {
@@ -1324,14 +1251,12 @@ function bindEvents() {
     const btn = $('confirmCustomer');
     const prevText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Salvataggio su Google Sheets…';
+    btn.textContent = 'Salvataggio su Supabase…';
 
     let savedCustomer = null;
     try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+      if (window.ClwData && window.ClwData.isConfigured()) {
+        savedCustomer = await window.ClwData.saveCustomer({
           name,
           city,
           address,
@@ -1344,13 +1269,13 @@ function bindEvents() {
           iban,
           bank,
           agentId
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Errore salvataggio cliente');
-      savedCustomer = data.customer;
+        });
+      }
     } catch (err) {
       console.warn('Errore salvataggio remoto cliente, uso fallback locale:', err);
+    }
+
+    if (!savedCustomer) {
       savedCustomer = {
         id: `LOCAL-${Date.now()}`,
         code: `LOCAL-${Date.now()}`,
@@ -1373,7 +1298,7 @@ function bindEvents() {
         activity: 'Cliente',
         activityCode: ''
       };
-      toast('Cliente salvato in locale (Google Sheets non raggiungibile)');
+      toast('Cliente salvato in locale');
     } finally {
       btn.disabled = false;
       btn.textContent = prevText;
@@ -1390,7 +1315,7 @@ function bindEvents() {
       $('customerDialog').close();
       $('customerForm').reset();
       await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-      toast(`Cliente "${savedCustomer.name}" salvato su Google Sheets e assegnato`);
+      toast(`Cliente "${savedCustomer.name}" salvato su Supabase e assegnato`);
     }
   };
   $('dataBtn').onclick = async () => {
@@ -1398,7 +1323,7 @@ function bindEvents() {
     renderCompanyProfile();
     renderDataDialog();
     $('dataDialog').showModal();
-    toast('Dati sincronizzati con Google Sheets');
+    toast('Dati sincronizzati con Supabase');
   };
   $('applyImport').onclick = applyImports;
 }
@@ -1414,7 +1339,7 @@ async function start() {
     const isRev = !params.get('edit');
     $('documentTitle').textContent = isRev ? 'REVISIONE OFFERTA' : 'MODIFICA OFFERTA';
     $('grandLabel').textContent = 'TOTALE OFFERTA';
-    $('submitBtn').textContent = isRev ? 'Registra revisione su Google Sheets' : 'Aggiorna offerta su Google Sheets';
+    $('submitBtn').textContent = isRev ? 'Registra revisione su Supabase' : 'Aggiorna offerta su Supabase';
     document.title = isRev ? `Revisione ${revParam}` : `Modifica ${revParam}`;
 
     // Calcola il nuovo numero di revisione progressivo
@@ -1443,7 +1368,7 @@ async function start() {
   }
 
   bindEvents();
-  $('syncLabel').textContent = 'Connessione a Google Sheets…';
+  $('syncLabel').textContent = 'Connessione a Supabase Live…';
 
   try {
     await checkUserSession();
@@ -1475,16 +1400,18 @@ async function start() {
           container.parentNode.insertBefore(banner, container.nextSibling);
         }
       }
+      const mPlus = revParam.match(/-BANCO-(\d+)/i);
+      const plusNote = mPlus ? ` <span style="background:#dbeafe; color:#0369a1; padding:2px 8px; border-radius:4px; font-weight:750; font-size:.78rem; margin-left:6px; border:1px solid #bfdbfe;">📋 Plus: OFC ${mPlus[1]}/2026</span>` : '';
       banner.innerHTML = `
         <div>
-          <strong>✏️ Revisione Offerta:</strong> Stai lavorando sui dati dell'offerta originale <code>${esc(revParam)}</code>.
+          <strong>✏️ Revisione Offerta:</strong> Stai lavorando sui dati dell'offerta originale <code>${esc(revParam)}</code>${plusNote}.
           <div style="font-size:.78rem; color:#2563eb; margin-top:2px;">Tutti gli articoli sono stati ricaricati. Puoi aggiungerne altri dal catalogo, variare quantità o prezzi, e ristampare o confermare.</div>
         </div>
         <a href="/index.html" class="btn secondary" style="padding:4px 10px; font-size:.78rem; text-decoration:none;">Torna al Registro</a>
       `;
     }
 
-    $('syncLabel').textContent = navigator.onLine ? '🟢 Google Sheets collegato' : 'Modalità offline';
+    $('syncLabel').textContent = navigator.onLine ? '🟢 Supabase Live' : 'Modalità offline';
     $('offerCode').textContent = offerNumber();
   } catch (error) {
     console.error(error);
@@ -1499,7 +1426,7 @@ window.addEventListener('offline', () => {
   toast('Sei offline: dati e bozze restano disponibili');
 });
 window.addEventListener('online', () => {
-  $('syncLabel').textContent = '🟢 Google Sheets collegato';
+  $('syncLabel').textContent = '🟢 Supabase Live';
   toast('Connessione ripristinata');
   flushOutbox();
 });

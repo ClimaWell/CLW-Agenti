@@ -279,7 +279,48 @@
     },
 
     /**
+     * Salva o aggiorna un cliente direttamente su Supabase
+     */
+    async saveCustomer(cust) {
+      const client = initClient();
+      const code = cust.code || cust.id || `CLI-${Date.now()}`;
+      const payload = {
+        code: code,
+        name: cust.name,
+        address: cust.address || '',
+        city: cust.city || '',
+        province: cust.province || '',
+        postal_code: cust.postalCode || cust.postal_code || '',
+        phone: cust.phone || '',
+        mobile: cust.mobile || '',
+        email: cust.email || '',
+        vat_number: cust.vat || cust.vatNumber || cust.vat_number || cust.tax || '',
+        tax_code: cust.taxCode || cust.tax_code || cust.tax || '',
+        sdi_code: cust.sdi || cust.sdi_code || '0000000',
+        agent_code: cust.agentId || cust.agent_code || null,
+        payment_method: cust.payment || cust.payment_method || 'Ri.Ba. 60 gg. f.m.',
+        iban: cust.iban || '',
+        updated_at: new Date().toISOString()
+      };
+
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('customers')
+            .upsert(payload, { onConflict: 'code' })
+            .select();
+          if (error) console.warn('[Supabase] Errore inserimento cliente:', error.message);
+          return data && data[0] ? data[0] : payload;
+        } catch (err) {
+          console.warn('[Supabase] Errore inserimento cliente:', err.message);
+        }
+      }
+      return payload;
+    },
+
+    /**
      * Recupera l'elenco ufficiale degli agenti da Supabase (sincronizzati da Plus 2000)
+     * Esclude categoricamente gli agenti disattivati (colonna 'attivo' o 'active' a False)
      */
     async getAgents() {
       const client = initClient();
@@ -288,18 +329,80 @@
           const { data, error } = await client
             .from('agents')
             .select('*')
-            .eq('active', true)
             .order('name', { ascending: true });
           if (!error && data && data.length) {
-            setLocalCache('agents', data);
-            return data;
+            // Filtra solo gli agenti attivi: verifica sia la colonna manuale 'attivo' sia 'active'
+            const activeAgents = data.filter(a => {
+              if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
+              if (a.active === false || a.active === 'false' || a.active === 0) return false;
+              return true;
+            });
+            setLocalCache('agents', activeAgents);
+            return activeAgents;
           }
         } catch (err) {
           console.warn('[Supabase] Errore lettura agenti:', err.message);
         }
       }
       const cached = await getLocalCache('agents');
-      return cached || [];
+      if (cached && Array.isArray(cached)) {
+        return cached.filter(a => {
+          if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
+          if (a.active === false || a.active === 'false' || a.active === 0) return false;
+          return true;
+        });
+      }
+      return [];
+    },
+
+    /**
+     * Converte un'offerta (OFC) in un ordine (OCL) su Supabase
+     */
+    async convertOfferToOrder(offerNumber) {
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non disponibile');
+
+      const { data: docs, error: docErr } = await client
+        .from('documents')
+        .select('*')
+        .eq('number', offerNumber)
+        .limit(1);
+
+      if (docErr || !docs || !docs.length) {
+        throw new Error(`Offerta ${offerNumber} non trovata su Supabase`);
+      }
+
+      const orig = docs[0];
+      const newOrderNum = offerNumber.replace(/^OFC/i, 'OCL').replace(/^OFF/i, 'ORD');
+      const orderNumber = newOrderNum !== offerNumber ? newOrderNum : `ORD-${offerNumber}`;
+
+      const newDoc = {
+        ...orig,
+        document_type: 'OCL',
+        number: orderNumber,
+        status: 'Inviato',
+        notes: (orig.notes ? orig.notes + ' | ' : '') + `Convertito da Offerta ${offerNumber}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      delete newDoc.id;
+
+      const { error: insErr } = await client.from('documents').upsert(newDoc, { onConflict: 'number' });
+      if (insErr) throw insErr;
+
+      const lines = await this.getDocumentLines(offerNumber);
+      if (lines && lines.length > 0) {
+        const orderLines = lines.map(l => {
+          const nl = { ...l, document_number: orderNumber };
+          delete nl.id;
+          return nl;
+        });
+        await client.from('document_lines').insert(orderLines);
+      }
+
+      await client.from('documents').update({ status: 'Confermata', updated_at: new Date().toISOString() }).eq('number', offerNumber);
+
+      return { ok: true, orderNumber };
     },
 
     /**

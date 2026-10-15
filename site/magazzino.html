@@ -625,10 +625,15 @@
           Accompagna l'installatore in corsia, scansiona i prodotti prelevati e genera un <strong>Preventivo</strong> o un <strong>DDT di Consegna Immediata</strong>.
         </p>
 
-        <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:6px;">Seleziona Cliente Presente al Banco:</label>
-        <select id="selCounterCustomer" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--border); font-size:0.95rem; font-weight:600; background:#fff; margin-bottom:14px;">
+        <label style="display:block; font-size:0.82rem; font-weight:700; color:var(--navy); margin-bottom:6px;">👤 Cliente al Banco (Cerca per Iniziale o Numero Conto):</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="text" id="txtSearchCounterCustomer" class="scan-input" style="flex:1; padding:9px 12px; font-size:0.92rem; border:2px solid #0284c7; background:#f0f9ff;" placeholder="🔍 Digita iniziale o n° conto (es. 151, FORASASSI)..." autocomplete="off">
+          <button type="button" id="btnClearCounterCust" class="btn-step" style="padding:0 12px; font-size:0.9rem; border-radius:8px;" title="Azzera">✕</button>
+        </div>
+        <select id="selCounterCustomer" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--border); font-size:0.95rem; font-weight:600; background:#fff; margin-bottom:6px;">
           <option value="">Seleziona cliente dall'anagrafica…</option>
         </select>
+        <div id="counterCustFeedback" style="font-size:0.78rem; color:#0369a1; margin-bottom:14px; font-weight:600; min-height:16px;"></div>
 
         <div class="scan-bar">
           <input type="text" id="counterBarcodeInput" class="scan-input" placeholder="Scansiona prodotto dal ripiano…">
@@ -1106,11 +1111,13 @@
         return;
       }
       soundBeep(true);
-      const existing = counterCart.find(c => c.code === prod.code);
-      if (existing) {
-        existing.quantity += 1;
+      const existingIdx = counterCart.findIndex(c => c.code === prod.code);
+      if (existingIdx >= 0) {
+        counterCart[existingIdx].quantity += 1;
+        const it = counterCart.splice(existingIdx, 1)[0];
+        counterCart.unshift(it); // Porta l'articolo in cima alla lista
       } else {
-        counterCart.push({
+        counterCart.unshift({ // Inserisce il nuovo articolo in cima
           code: prod.code,
           description: prod.description,
           brand: prod.brand,
@@ -1285,10 +1292,66 @@
       allProducts = await window.ClwData.getProducts();
       allCustomers = await window.ClwData.getCustomers();
 
-      // Populate customer select
+      // Popola e gestisce ricerca rapida clienti
+      const searchInp = document.getElementById('txtSearchCounterCustomer');
       const custSelect = document.getElementById('selCounterCustomer');
-      custSelect.innerHTML = '<option value="">Seleziona cliente dall\'anagrafica…</option>' +
-        allCustomers.map(c => `<option value="${c.code || c.id}">${c.code ? c.code + ' - ' : ''}${c.name}</option>`).join('');
+      const clearBtn = document.getElementById('btnClearCounterCust');
+      const feedback = document.getElementById('counterCustFeedback');
+
+      function filterCounterCustomers(query) {
+        const q = (query || '').trim().toLowerCase();
+        let matched = allCustomers;
+        if (q) {
+          matched = allCustomers.filter(c => {
+            const code = String(c.code || c.id || '').toLowerCase();
+            const name = String(c.name || '').toLowerCase();
+            const city = String(c.city || '').toLowerCase();
+            return code === q || code.startsWith(q) || code.includes(q) || name.includes(q) || city.includes(q);
+          });
+        }
+
+        custSelect.innerHTML = '<option value="">-- Seleziona cliente dall\'anagrafica --</option>' +
+          matched.map(c => `<option value="${c.code || c.id}">${c.code ? `[${c.code}] ` : ''}${c.name}${c.city ? ` (${c.city})` : ''}</option>`).join('');
+
+        if (q) {
+          feedback.textContent = `Trovati ${matched.length} clienti per "${q}"`;
+          if (matched.length === 1) {
+            custSelect.value = matched[0].code || matched[0].id;
+            feedback.textContent = `✅ Selezionato: [${matched[0].code}] ${matched[0].name}`;
+          } else if (matched.length > 1) {
+            const exactCode = matched.find(c => String(c.code).toLowerCase() === q);
+            if (exactCode) {
+              custSelect.value = exactCode.code || exactCode.id;
+              feedback.textContent = `✅ Trovato conto [${exactCode.code}]: ${exactCode.name}`;
+            }
+          }
+        } else {
+          feedback.textContent = `${allCustomers.length} clienti pronti per vendita a banco`;
+        }
+      }
+
+      filterCounterCustomers('');
+      if (searchInp) {
+        searchInp.oninput = (e) => filterCounterCustomers(e.target.value);
+        searchInp.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (custSelect.options.length > 1) {
+              custSelect.selectedIndex = 1;
+              const opt = custSelect.options[1];
+              feedback.textContent = `✅ Selezionato: ${opt.text}`;
+              document.getElementById('counterBarcodeInput').focus();
+            }
+          }
+        };
+      }
+      if (clearBtn) {
+        clearBtn.onclick = () => {
+          searchInp.value = '';
+          filterCounterCustomers('');
+          searchInp.focus();
+        };
+      }
 
       // Load warehouse orders
       activeOrders = await window.ClwData.getWarehouseOrders();

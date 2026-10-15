@@ -997,7 +997,7 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" onclick="$('statusModal').close()">Annulla</button>
         <button type="button" id="btnSaveAndPrintDdt" class="btn secondary" style="background:#e0f2fe; color:#0369a1; border-color:#7dd3fc; font-weight:750;">🖨️ Salva & Stampa DDT</button>
-        <button type="submit" id="btnSaveStatus" class="btn primary">💾 Salva su Google Sheets</button>
+        <button type="submit" id="btnSaveStatus" class="btn primary">💾 Salva su Supabase</button>
       </div>
     </form>
   </dialog>
@@ -1110,26 +1110,21 @@
 
     async function loadAuxiliaryData() {
       try {
-        const [compRes, custRes, offRes, prodRes] = await Promise.all([
-          fetch('/api/company').then(r => r.json()).catch(() => ({})),
-          fetch('/api/customers').then(r => r.json()).catch(() => ({})),
-          fetch('/api/offers').then(r => r.json()).catch(() => ({})),
-          fetch('/api/products').then(r => r.json()).catch(() => ({}))
-        ]);
-        if (compRes?.company && Object.keys(compRes.company).length > 0) {
-          companyProfile = { ...companyProfile, ...compRes.company };
-          if ($('footerText')) {
-            $('footerText').textContent = compRes.company.footerText || `© ${compRes.company.displayName || compRes.company.companyName || 'Climawell'} — Gestione Ordini, Magazzino & DDT`;
+        if (window.ClwData && window.ClwData.isConfigured()) {
+          const [comp, custs, prods] = await Promise.all([
+            window.ClwData.getCompany().catch(() => null),
+            window.ClwData.getCustomers().catch(() => []),
+            window.ClwData.getProducts().catch(() => [])
+          ]);
+          if (comp) {
+            companyProfile = { ...companyProfile, ...comp };
+            if ($('footerText')) {
+              $('footerText').textContent = comp.footer_text || `© ${comp.display_name || comp.company_name || 'Climawell'} — Gestione Ordini, Magazzino & DDT`;
+            }
           }
-        }
-        if (custRes?.customers && Array.isArray(custRes.customers)) {
-          allCustomers = custRes.customers;
-        }
-        if (offRes?.offers && Array.isArray(offRes.offers)) {
-          allOffers = offRes.offers;
-        }
-        if (prodRes?.products && Array.isArray(prodRes.products)) {
-          window.catalogProductsMap = Object.fromEntries(prodRes.products.map(p => [p.code, p]));
+          if (custs && custs.length > 0) allCustomers = custs;
+          if (prods && prods.length > 0) window.catalogProductsMap = Object.fromEntries(prods.map(p => [p.code, p]));
+          return;
         }
       } catch (e) {
         console.warn('Caricamento dati ausiliari non bloccante:', e);
@@ -1452,6 +1447,47 @@
 
     async function saveStatusUpdate(orderId, updateData) {
       try {
+        if (window.ClwData && window.ClwData.isConfigured()) {
+          const client = window.clwSupabase || (window.supabase && window.supabase.createClient(window.ClwData.getConfig().url, window.ClwData.getConfig().key));
+          if (client) {
+            const statusMap = {
+              'ricevuto': 'Inviato',
+              'approvato': 'Approvato',
+              'magazzino': 'In Preparazione',
+              'spedito': 'Spedito',
+              'fatturato': 'Fatturato',
+              'respinto': 'Respinto'
+            };
+            const supaPayload = {
+              updated_at: new Date().toISOString()
+            };
+            if (updateData.status) supaPayload.status = statusMap[updateData.status] || updateData.status;
+            if (updateData.ddtNumber !== undefined) supaPayload.ddt_number = updateData.ddtNumber;
+            if (updateData.ddtDate !== undefined) supaPayload.ddt_date = updateData.ddtDate;
+            if (updateData.carrier !== undefined) supaPayload.carrier = updateData.carrier;
+            if (updateData.trackingNumber !== undefined) supaPayload.tracking_number = updateData.trackingNumber;
+            if (updateData.shippingDate !== undefined) supaPayload.shipping_date = updateData.shippingDate;
+            if (updateData.notes !== undefined) supaPayload.notes = updateData.notes;
+
+            await client.from('documents').update(supaPayload).eq('number', orderId);
+            toast('Stato ordine e dati DDT salvati su Supabase!');
+
+            const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
+            if (ord) {
+              if (updateData.status) ord.workflow_status = updateData.status;
+              if (updateData.ddtNumber !== undefined) ord.ddt_number = updateData.ddtNumber;
+              if (updateData.ddtDate !== undefined) ord.ddt_date = updateData.ddtDate;
+              if (updateData.carrier !== undefined) ord.carrier = updateData.carrier;
+              if (updateData.trackingNumber !== undefined) ord.tracking_number = updateData.trackingNumber;
+              if (updateData.shippingDate !== undefined) ord.shipping_date = updateData.shippingDate;
+              if (updateData.notes !== undefined) ord.notes = updateData.notes;
+            }
+            updateStats();
+            renderOrders();
+            return;
+          }
+        }
+
         const res = await fetch('/api/orders/update-status', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -1460,7 +1496,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Errore aggiornamento');
 
-        toast('Stato ordine e dati DDT aggiornati su Google Sheets!');
+        toast('Stato ordine e dati DDT aggiornati!');
         // Update local object immediately
         const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
         if (ord) {
