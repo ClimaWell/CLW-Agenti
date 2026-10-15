@@ -99,24 +99,54 @@
       const client = initClient();
       if (client) {
         try {
-          let q = client
-            .from('products')
-            .select('*')
-            .eq('active', true)
-            .order('code', { ascending: true });
-
-          q = q.limit(options.limit || 50000);
           if (options.search) {
             const s = options.search.trim();
-            q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,barcode.ilike.%${s}%,brand.ilike.%${s}%`);
+            const sNoSpace = s.replace(/\s+/g, '');
+            const orConditions = [
+              `code.ilike.%${s}%`,
+              `code.ilike.%${sNoSpace}%`,
+              `description.ilike.%${s}%`,
+              `barcode.ilike.%${s}%`,
+              `barcode.ilike.%${sNoSpace}%`,
+              `brand.ilike.%${s}%`
+            ].join(',');
+
+            const { data, error } = await client
+              .from('products')
+              .select('*')
+              .eq('active', true)
+              .or(orConditions)
+              .limit(options.limit || 50);
+
+            if (error) throw error;
+            return data || [];
           }
 
-          const { data, error } = await q;
-          if (error) throw error;
-          if (data && data.length) {
-            // Salva in cache locale per modalità offline
-            setLocalCache('products', data);
-            return data;
+          // Scaricamento catalogo completo con paginazione a blocchi di 1.000 (bypass limite PostgREST)
+          let allProds = [];
+          let from = 0;
+          const chunkSize = 1000;
+          const maxLimit = options.limit || 50000;
+
+          while (from < maxLimit) {
+            const to = Math.min(from + chunkSize - 1, maxLimit - 1);
+            const { data, error } = await client
+              .from('products')
+              .select('*')
+              .eq('active', true)
+              .order('code', { ascending: true })
+              .range(from, to);
+
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allProds.push(...data);
+            if (data.length < chunkSize) break;
+            from += chunkSize;
+          }
+
+          if (allProds.length) {
+            setLocalCache('products', allProds);
+            return allProds;
           }
         } catch (err) {
           console.warn('[Supabase] Errore lettura prodotti, fallback locale:', err.message);
@@ -135,14 +165,22 @@
     async findProductByBarcodeOrCode(codeOrBarcode) {
       if (!codeOrBarcode) return null;
       const term = String(codeOrBarcode).trim();
+      const termNoSpace = term.replace(/\s+/g, '');
       const client = initClient();
 
       if (client) {
         try {
+          const orFilter = [
+            `code.ilike.${term}`,
+            `code.ilike.${termNoSpace}`,
+            `barcode.ilike.%${term}%`,
+            `barcode.ilike.%${termNoSpace}%`
+          ].join(',');
+
           const { data, error } = await client
             .from('products')
             .select('*, product_locations(*)')
-            .or(`barcode.eq.${term},code.eq.${term},barcode.ilike.%${term}%`)
+            .or(orFilter)
             .limit(1);
 
           if (!error && data && data.length) return data[0];
@@ -153,16 +191,19 @@
 
       // Fallback su cache locale
       const prods = (await getLocalCache('products')) || [];
+      const termClean = term.toLowerCase().replace(/\s+/g, '');
       return (
         prods.find(
           p => {
+            const codeClean = String(p.code || '').toLowerCase().replace(/\s+/g, '');
+            if (codeClean === termClean) return true;
             const b = String(p.barcode || '').trim();
             const bList = b.split(',').map(s => s.trim());
             return (
               b === term ||
               bList.includes(term) ||
               b.includes(term) ||
-              String(p.code || '').trim().toLowerCase() === term.toLowerCase()
+              bList.includes(termNoSpace)
             );
           }
         ) || null
