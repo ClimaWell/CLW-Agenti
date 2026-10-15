@@ -141,13 +141,35 @@ async function dbSet(key, value) {
 }
 
 async function loadData() {
+  // Step 0: Lettura immediata da cache locale per reattività istantanea dell'interfaccia
+  try {
+    const [cachedAg, cachedComp, cachedData] = await Promise.all([
+      dbGet('agents-data').catch(() => null),
+      dbGet('company-profile').catch(() => null),
+      dbGet('dataset').catch(() => null)
+    ]);
+    if (cachedAg && cachedAg.agents && cachedAg.agents.length) {
+      AGENTS = cachedAg.agents;
+      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+      hierarchy = cachedAg.hierarchy || hierarchy;
+      roleOptions();
+    }
+    if (cachedComp) {
+      companyProfile = { ...companyProfile, ...cachedComp };
+      renderCompanyProfile();
+    }
+    if (cachedData && cachedData.clients && cachedData.clients.length) {
+      clients = cachedData.clients;
+    }
+  } catch (_) {}
+
   // Step 1: Priorità assoluta a Supabase (Database ufficiale Climawell & Plus 2000)
   if (window.ClwData && window.ClwData.isConfigured()) {
     try {
-      const [supAg, supCust, supProd, supComp] = await Promise.all([
+      // Carica in parallelo Agenti, Clienti e Profilo Aziendale (veloci e leggeri)
+      const [supAg, supCust, supComp] = await Promise.all([
         window.ClwData.getAgents(),
         window.ClwData.getCustomers(),
-        window.ClwData.getProducts(),
         window.ClwData.getCompany()
       ]);
 
@@ -165,6 +187,7 @@ async function loadData() {
         agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
         hierarchy = {};
         await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
+        roleOptions();
       }
 
       if (supCust && supCust.length > 0) {
@@ -188,29 +211,6 @@ async function loadData() {
         }));
       }
 
-      if (supProd && supProd.length > 0) {
-        products = supProd.map(p => ({
-          id: p.code,
-          code: p.code,
-          description: p.description,
-          brand: p.brand || '',
-          sector: p.sector || '',
-          macroFamily: p.macro_family || '',
-          family: p.family || '',
-          group: [p.brand, p.sector, p.macro_family, p.family].filter(Boolean).join(' · '),
-          price: Number(p.price) || 0,
-          um: p.um || 'PZ',
-          stock: Number(p.stock_qty) || 0,
-          location: p.primary_location || '',
-          barcode: p.barcode || '',
-          vat: Number(p.vat) || 22,
-          maxDiscount: Number(p.max_discount) || 60,
-          imageUrl: p.image_url || '',
-          imageRef: p.image_ref || '',
-          image: p.image_url || ''
-        }));
-      }
-
       if (supComp) {
         companyProfile = {
           ...companyProfile,
@@ -230,9 +230,9 @@ async function loadData() {
           footerText: supComp.footer_text || ''
         };
         await dbSet('company-profile', companyProfile).catch(() => {});
+        renderCompanyProfile();
       }
 
-      // Salva nella cache locale IndexedDB i dati freschi da Supabase
       dataMeta = {
         generatedAt: new Date().toISOString(),
         source: 'Supabase PostgreSQL (Plus 2000)',
@@ -241,7 +241,7 @@ async function loadData() {
         agentCount: AGENTS.length
       };
       await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-      return; // Dati caricati direttamente ed esclusivamente da Supabase!
+      return;
     } catch (supErr) {
       console.warn('[Supabase] Errore caricamento in offer-app, fallback su cache locale:', supErr);
     }
@@ -408,7 +408,10 @@ function roleOptions() {
   heads.forEach(h => {
     html += `<option value="AREA_${h.id}">Capo area · ${esc(h.name)}</option>`;
   });
-  html += AGENTS.map(a => `<option value="${a.id}">${a.id.replace('AG', 'Agente ')} · ${esc(a.name)}</option>`).join('');
+  html += AGENTS.map(a => {
+    const label = a.id.startsWith('AG') ? a.id.replace('AG', 'Agente ') : `Agente ${a.id}`;
+    return `<option value="${a.id}">${label} · ${esc(a.name)}</option>`;
+  }).join('');
 
   $('roleSelect').innerHTML = html;
   $('roleSelect').style.display = '';
@@ -428,7 +431,10 @@ function roleOptions() {
 
   if ($('assignedAgent')) {
     $('assignedAgent').disabled = false;
-    $('assignedAgent').innerHTML = AGENTS.map(a => `<option value="${a.id}">${a.id.replace('AG', 'Agente ')} · ${esc(a.name)}</option>`).join('');
+    $('assignedAgent').innerHTML = AGENTS.map(a => {
+      const label = a.id.startsWith('AG') ? a.id.replace('AG', 'Agente ') : `Agente ${a.id}`;
+      return `<option value="${a.id}">${label} · ${esc(a.name)}</option>`;
+    }).join('');
   }
 }
 
