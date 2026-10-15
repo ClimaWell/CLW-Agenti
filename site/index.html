@@ -1563,10 +1563,20 @@
         }
       }).catch(() => { });
 
-      // 2. Load practices directly from Supabase (or fallback to cached/legacy)
+      // 2. Visualizza subito la cache locale per velocità immediata (stale-while-revalidate)
+      const cached = localStorage.getItem('oa_cached_practices');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allPractices = parsed;
+            renderList();
+          }
+        } catch (_) { }
+      }
+
+      // 3. Sincronizzazione in tempo reale con Supabase
       try {
-        $('rows').innerHTML = '<div style="text-align:center; padding: 24px; color: var(--muted);">Sincronizzazione registro Supabase & Plus 2000…</div>';
-        /*  */
         let loadedFromSupabase = false;
         if (window.ClwData && window.ClwData.isConfigured()) {
           try {
@@ -1599,8 +1609,8 @@
           }
         }
 
-        if (!loadedFromSupabase) {
-          // Fallback secondario legacy se Supabase non è raggiungibile
+        // Se Supabase non è configurato (ambiente legacy senza database), usa il vecchio foglio
+        if (!loadedFromSupabase && (!window.ClwData || !window.ClwData.isConfigured())) {
           if (window.companyConfigPromise) {
             try { await window.companyConfigPromise; } catch { }
           }
@@ -1633,20 +1643,13 @@
           $('offlineNotice').classList.add('hidden');
         }
       } catch (err) {
-        console.warn('Errore lettura pratiche, recupero cache locale:', err.message);
+        console.warn('Errore lettura pratiche, utilizzo cache locale:', err.message);
         $('statusDot').style.background = '#fbbf24';
-        const cached = localStorage.getItem('oa_cached_practices');
-        if (cached) {
-          allPractices = JSON.parse(cached);
+        const cachedFallback = localStorage.getItem('oa_cached_practices');
+        if (cachedFallback) {
+          allPractices = JSON.parse(cachedFallback);
           $('offlineNoticeText').textContent = 'Connessione al database non disponibile al momento. Visualizzazione dati locali.';
           $('offlineNotice').classList.remove('hidden');
-        } else {
-          $('rows').innerHTML = `
-            <div style="text-align:center; padding: 24px; color: #c5221f;">
-              Impossibile collegarsi al database: ${err.message}.
-            </div>
-          `;
-          return;
         }
       }
 

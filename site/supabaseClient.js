@@ -427,7 +427,7 @@
     },
 
     /**
-     * Recupera tutte le offerte e gli ordini da Supabase
+     * Recupera tutte le offerte e gli ordini da Supabase (con cache IndexedDB)
      */
     async getDocuments() {
       const client = initClient();
@@ -437,16 +437,24 @@
             .from('documents')
             .select('*')
             .order('created_at', { ascending: false });
-          if (!error && data) return data;
+          if (!error && Array.isArray(data)) {
+            setLocalCache('documents', data).catch(() => {});
+            return data;
+          }
           if (error) {
             console.warn('[Supabase] Tentativo getDocuments fallback:', error.message);
             const res2 = await client.from('documents').select('*');
-            if (!res2.error && res2.data) return res2.data;
+            if (!res2.error && Array.isArray(res2.data)) {
+              setLocalCache('documents', res2.data).catch(() => {});
+              return res2.data;
+            }
           }
         } catch (err) {
           console.warn('[Supabase] Errore documents:', err.message);
         }
       }
+      const cached = await getLocalCache('documents');
+      if (Array.isArray(cached) && cached.length > 0) return cached;
       return [];
     },
 
