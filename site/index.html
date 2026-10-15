@@ -959,10 +959,16 @@
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-sync-all" id="btnRequestPlusSync"
+              title="Richiede al server Plus 2000 in ufficio di estrarre e caricare su Supabase gli ultimi dati (barcode, giacenze, prezzi)"
+              style="background: linear-gradient(135deg, #0d9488, #059669); border-color: rgba(255,255,255,0.3); box-shadow: 0 2px 8px rgba(13,148,136,0.25);">
+              <span class="sync-btn-icon" id="plusSyncBtnIcon">⚡</span>
+              <span id="plusSyncBtnText">Aggiorna da Plus 2000</span>
+            </button>
             <button class="btn-sync-all" id="btnSyncAll"
-              title="Sincronizza Catalogo, Clienti e Registro con Google Drive e Plus 2000">
+              title="Ricarica Catalogo, Clienti e Registro da Supabase">
               <span class="sync-btn-icon" id="syncBtnIcon">🔄</span>
-              <span id="syncBtnText">Sincronizza & Aggiorna Dati</span>
+              <span id="syncBtnText">Ricarica Dati Web</span>
             </button>
             <button class="btn-sub" id="refresh" title="Ricarica rapida solo registro pratiche"
               style="font-size:0.8rem; padding:8px 10px;">📋 Solo registro</button>
@@ -2136,6 +2142,71 @@
       };
     }
 
+    async function handleRequestPlusSync() {
+      const btn = $('btnRequestPlusSync');
+      const icon = $('plusSyncBtnIcon');
+      const text = $('plusSyncBtnText');
+      const badge = $('lastSyncBadge');
+
+      if (!window.ClwData || !window.ClwData.isConfigured()) {
+        alert('Supabase non è configurato. Controlla la pagina Configurazione.');
+        return;
+      }
+
+      if (btn) btn.disabled = true;
+      if (icon) icon.classList.add('spin-anim');
+      if (text) text.textContent = 'Richiesta a Plus…';
+      if (badge) {
+        badge.textContent = '⚡ Contatto server Plus 2000 in ufficio…';
+        badge.className = 'sync-pill pending';
+      }
+
+      try {
+        const { number } = await window.ClwData.requestPlusSync('ACTIVE');
+        if (text) text.textContent = 'Plus sta elaborando… ⏳';
+        if (badge) badge.textContent = `⏳ Richiesta #${number} in elaborazione su Plus 2000…`;
+
+        let completed = false;
+        let attempts = 0;
+        const maxAttempts = 35; // ~70 secondi max
+
+        while (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+          const statusRec = await window.ClwData.checkPlusSyncStatus(number);
+          if (statusRec) {
+            if (statusRec.status === 'In Corso') {
+              if (text) text.textContent = 'Plus 2000: scaricamento dati… 📦';
+              if (badge) badge.textContent = `📦 Plus 2000 sta estraendo giacenze, prezzi e barcode…`;
+            } else if (statusRec.status === 'Completato') {
+              completed = true;
+              break;
+            } else if (statusRec.status === 'Errore') {
+              throw new Error(statusRec.notes || 'Errore durante la sincronizzazione su Plus 2000');
+            }
+          }
+        }
+
+        if (completed) {
+          if (text) text.textContent = 'Ricarica app… 🔄';
+          if (badge) badge.textContent = '✅ Plus 2000 completato! Download catalogo fresco…';
+          await window.ClwData.clearLocalCache();
+          await syncAllData(true);
+          alert('🎉 Sincronizzazione da Plus 2000 completata con successo!\nCatalogo, barcode EAN-13, giacenze e clienti aggiornati.');
+        } else {
+          alert('⚠️ Il connettore locale Plus 2000 non ha ancora risposto.\n\nAssicurati che "avvia_sync_continuo.bat" sia in esecuzione sul computer/server dell\'ufficio.');
+        }
+      } catch (err) {
+        console.error('Errore richiesta sync Plus:', err);
+        alert('Errore durante la richiesta di aggiornamento da Plus: ' + err.message);
+      } finally {
+        if (btn) btn.disabled = false;
+        if (icon) icon.classList.remove('spin-anim');
+        if (text) text.textContent = 'Aggiorna da Plus 2000';
+      }
+    }
+
+    if ($('btnRequestPlusSync')) $('btnRequestPlusSync').onclick = handleRequestPlusSync;
     $('btnSyncAll').onclick = () => syncAllData(true);
     $('refresh').onclick = load;
 

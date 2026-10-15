@@ -638,12 +638,64 @@ function renderCatalog() {
   });
 }
 
+let remoteProductSearchTimer = null;
+
+function renderProductButtons(list) {
+  $('productResults').innerHTML = list.map(p => `<button class="product-result" data-code="${esc(p.code)}"><span><strong>${esc(p.description)}</strong><small>${esc(p.code)} · ${esc([p.brand, p.macroFamily, p.family].filter(Boolean).join(' · '))} · disp. ${num.format(p.stock)}</small></span><span class="result-price">${euro.format(p.price)}</span></button>`).join('') || '<div class="empty-state">Nessun articolo trovato</div>';
+  $('productResults').classList.remove('hidden');
+  document.querySelectorAll('.product-result').forEach(b => b.onclick = () => addProduct(b.dataset.code));
+}
+
 function renderProducts(query = '') {
   const q = normalized(query);
   const found = (q ? products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)) : products).slice(0, 60);
-  $('productResults').innerHTML = found.map(p => `<button class="product-result" data-code="${esc(p.code)}"><span><strong>${esc(p.description)}</strong><small>${esc(p.code)} · ${esc([p.brand, p.macroFamily, p.family].filter(Boolean).join(' · '))} · disp. ${num.format(p.stock)}</small></span><span class="result-price">${euro.format(p.price)}</span></button>`).join('') || '<div class="empty-state">Nessun articolo trovato</div>';
-  $('productResults').classList.remove('hidden');
-  document.querySelectorAll('.product-result').forEach(b => b.onclick = () => addProduct(b.dataset.code));
+  renderProductButtons(found);
+
+  // Ricerca in tempo reale su Supabase per articoli oltre il blocco iniziale (es. MS230)
+  if (q && q.length >= 2 && window.ClwData && window.ClwData.isConfigured()) {
+    clearTimeout(remoteProductSearchTimer);
+    remoteProductSearchTimer = setTimeout(async () => {
+      try {
+        const remote = await window.ClwData.getProducts({ search: query.trim(), limit: 30 });
+        if (remote && remote.length) {
+          let added = false;
+          for (const rp of remote) {
+            const formatted = {
+              id: rp.code,
+              code: rp.code,
+              description: rp.description,
+              brand: rp.brand || '',
+              sector: rp.sector || '',
+              macroFamily: rp.macro_family || '',
+              family: rp.family || '',
+              group: [rp.brand, rp.sector, rp.macro_family, rp.family].filter(Boolean).join(' · '),
+              price: Number(rp.price) || 0,
+              um: rp.um || 'PZ',
+              stock: Number(rp.stock_qty) || 0,
+              location: rp.primary_location || '',
+              barcode: rp.barcode || '',
+              vat: Number(rp.vat) || 22,
+              maxDiscount: Number(rp.max_discount) || 60,
+              imageUrl: rp.image_url || '',
+              imageRef: rp.image_ref || '',
+              image: rp.image_url || ''
+            };
+            const existingIdx = products.findIndex(p => p.code === rp.code);
+            if (existingIdx >= 0) {
+              products[existingIdx] = formatted;
+            } else {
+              products.push(formatted);
+              added = true;
+            }
+          }
+          const updated = products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)).slice(0, 60);
+          if (updated.length) renderProductButtons(updated);
+        }
+      } catch (e) {
+        console.warn('Errore ricerca remota:', e);
+      }
+    }, 200);
+  }
 }
 
 function addProduct(code) {
