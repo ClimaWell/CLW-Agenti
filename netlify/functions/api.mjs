@@ -15,19 +15,14 @@ const unb64 = v => Buffer.from(v, 'base64url').toString('utf8');
 const secret = () => process.env.SESSION_SECRET || 'secret-key-at-least-32-characters-long';
 const sign = v => crypto.createHmac('sha256', secret()).update(v).digest('base64url');
 
-let usersCache = { timestamp: 0, users: [] };
-
 function users() {
-  if (usersCache.users.length > 0) return usersCache.users;
   try {
     const list = JSON.parse(process.env.PILOT_USERS || '[]');
     if (list.length) return list;
   } catch {}
   return [
-    { username: 'amministratore', password: 'Clima1997', name: 'Amministratore Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'administrator', password: 'Lisa4882', name: 'SuperAdmin Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'admin', password: 'clw2026!', name: 'Admin Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'f.pontrelli', password: 'clw2026!', name: 'Francesco Pontrelli', role: 'agent', agentCode: '217' }
+    { username: 'agente01', password: 'cambiare-password', name: 'Tina Cucci', role: 'agent', agentCode: 'AG01' },
+    { username: 'amministrazione', password: 'cambiare-password', name: 'Amministrazione', role: 'admin', agentCode: 'AG01' }
   ];
 }
 
@@ -45,7 +40,7 @@ function createSessionToken(user) {
     username: user.username,
     name: user.name,
     role: user.role || 'agent',
-    agentCode: normalizeAgentId(user.agentCode || (user.role === 'admin' ? 'TUTTI' : 'AG01')),
+    agentCode: normalizeAgentId(user.agentCode || 'AG01'),
     exp: Date.now() + 12 * 60 * 60 * 1000
   });
   return `${payload}.${sign(payload)}`;
@@ -87,7 +82,7 @@ function sessionCookie(user) {
     username: user.username,
     name: user.name,
     role: user.role || 'agent',
-    agentCode: normalizeAgentId(user.agentCode || (user.role === 'admin' ? 'TUTTI' : 'AG01')),
+    agentCode: normalizeAgentId(user.agentCode || 'AG01'),
     exp: Date.now() + 12 * 60 * 60 * 1000
   });
   return `oa_session=${payload}.${sign(payload)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=43200`;
@@ -109,32 +104,30 @@ function normalizeAgentId(code) {
 const OFFICIAL_SYSTEM_SPREADSHEETS = Object.freeze({
   company: {
     sheetName: 'Dati_Azienda_e_Mandanti',
-    spreadsheetId: '13OvGppFZm9WnA8SL_6gpNi7s_A2P0seWogN1DoVwZHA',
+    spreadsheetId: '1-ntNPKA3gdjZaxYntGNkXtKC5Kt4JIXGSoQfESO169M',
     tab: 'Dati azienda'
   },
   agents: {
     fileName: 'Anagrafica_Agenti',
-    spreadsheetId: '1Aspw3CnD0bgAqqZW4PoN-OOSSZBBtNrurTa3fy_56Tk',
+    spreadsheetId: '13HaTubf4_xVTtzkQUcYINkRtuSzLR2qGzJAiA-oAecU',
     tab: 'Agenti'
   },
   customers: {
     fileName: 'clienti',
-    spreadsheetId: '1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8',
+    spreadsheetId: '1rkFDBTCJD3JlrcvyOPGHjYTJDkjuMc24dJ7l6EqQ6I8',
     tab: 'clienti'
   },
   products: {
     fileName: 'Articoli',
-    spreadsheetId: '1g6zrWK_zZJZ82kdoNgda9KuoemYlSs0XGRRfJvoOvUk',
+    spreadsheetId: '17ErnowHZDqA3WDTN5auHkyTBPVn4MqkI8BFkiqkDhmE',
     tab: 'q_listino_prezzi_catalogo'
   },
   repository: {
     folder: 'Repository',
-    fileName: 'Registro_Offerte_e_Ordini_Plus2000',
-    spreadsheetId: '10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw',
-    tabHeader: 'DocTes',
-    tabLines: 'DocRig',
-    tabOffers: 'DocTes',
-    tabOrders: 'DocTes'
+    fileName: 'Registro offerte e ordini',
+    spreadsheetId: '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc',
+    tabOffers: 'Offerte',
+    tabOrders: 'Ordini'
   },
   warehouse: {
     folder: 'Repository',
@@ -144,10 +137,8 @@ const OFFICIAL_SYSTEM_SPREADSHEETS = Object.freeze({
     tabParameters: 'Parametri_Produzione'
   },
   googleDrive: {
-    sourceFolderUrl: 'https://drive.google.com/drive/folders/1K4tkUVi_4w8FrpKanPGMDwMwqW8pfClq',
-    folderId: '1K4tkUVi_4w8FrpKanPGMDwMwqW8pfClq',
-    repositoryFolderUrl: 'https://drive.google.com/drive/folders/1cxVlox1rdrAhPnDY3nToOs2XUZHWvFO_',
-    repositoryFolderId: '1cxVlox1rdrAhPnDY3nToOs2XUZHWvFO_'
+    sourceFolderUrl: 'https://drive.google.com/drive/folders/1lr8lThQr1SxP4LAx2n69_pDxwu36ifh9',
+    folderId: '1lr8lThQr1SxP4LAx2n69_pDxwu36ifh9'
   }
 });
 
@@ -157,10 +148,6 @@ const cleanEnvId = (val, fallback = '', oldPatterns = ['1mnW', '1N6ZcGa', 'undef
   if (trimmed.length < 20) return fallback;
   for (const p of oldPatterns) {
     if (trimmed.includes(p)) return fallback;
-  }
-  // Auto-correct old typo variants of the repository ID
-  if (trimmed.includes('1Ohp34c') || trimmed.includes('10hp34cPu6Zxc')) {
-    return '10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw';
   }
   return trimmed;
 };
@@ -189,12 +176,10 @@ let runtimeConfig = {
   },
   repository: {
     folder: 'Repository',
-    fileName: 'Registro_Offerte_e_Ordini_Plus2000',
+    fileName: 'Registro offerte e ordini',
     spreadsheetId: cleanEnvId(process.env.REGISTER_SPREADSHEET_ID) || cleanEnvId(process.env.REPOSITORY_SPREADSHEET_ID) || OFFICIAL_SYSTEM_SPREADSHEETS.repository.spreadsheetId,
-    tabHeader: 'DocTes',
-    tabLines: 'DocRig',
-    tabOffers: 'DocTes',
-    tabOrders: 'DocTes'
+    tabOffers: 'Offerte',
+    tabOrders: 'Ordini'
   },
   warehouse: {
     folder: 'Repository',
@@ -213,23 +198,10 @@ let tokenCache = { token: '', expires: 0 };
 
 async function googleToken() {
   if (tokenCache.expires > Date.now() + 60000) return tokenCache.token;
-  let email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let key = process.env.GOOGLE_PRIVATE_KEY;
-  const fullJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-
-  if (fullJson) {
-    try {
-      const parsed = JSON.parse(fullJson);
-      if (parsed.client_email) email = email || parsed.client_email;
-      if (parsed.private_key) key = key || parsed.private_key;
-    } catch {
-      if (!key) key = fullJson;
-    }
-  }
-
-  key = (key || '').replace(/\\n/g, '\n');
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   if (!email || !key) {
-    throw new Error('Collegamento Google non configurato (impostare GOOGLE_SERVICE_ACCOUNT_KEY oppure GOOGLE_SERVICE_ACCOUNT_EMAIL e GOOGLE_PRIVATE_KEY nelle variabili Netlify)');
+    throw new Error('Collegamento Google non configurato (mancano GOOGLE_SERVICE_ACCOUNT_EMAIL o GOOGLE_PRIVATE_KEY)');
   }
   const now = Math.floor(Date.now() / 1000);
   const head = b64({ alg: 'RS256', typ: 'JWT' });
@@ -292,97 +264,6 @@ async function updateRow(id, range, values) {
     method: 'PUT',
     body: JSON.stringify({ values })
   });
-}
-
-async function getUsers() {
-  const now = Date.now();
-  if (usersCache.users.length > 0 && (now - usersCache.timestamp < 60000)) {
-    return usersCache.users;
-  }
-
-  const agentsId = cleanEnvId(runtimeConfig?.agents?.spreadsheetId) || OFFICIAL_SYSTEM_SPREADSHEETS.agents.spreadsheetId;
-  const tab = 'Utenti';
-
-  try {
-    const rows = await readRange(agentsId, `'${tab}'!A1:H200`);
-    if (rows && rows.length > 0) {
-      let headerIdx = -1;
-      for (let i = 0; i < rows.length; i++) {
-        const line = (rows[i] || []).map(c => String(c).toLowerCase().trim());
-        if (line.includes('username') || line.includes('utente')) {
-          headerIdx = i;
-          break;
-        }
-      }
-
-      if (headerIdx >= 0) {
-        const header = rows[headerIdx].map(c => String(c).toLowerCase().trim());
-        const col = name => header.findIndex(h => h.includes(name));
-        const userIdx = col('username') >= 0 ? col('username') : col('utente');
-        const passIdx = col('password') >= 0 ? col('password') : col('pwd');
-        const nameIdx = col('nome');
-        const roleIdx = col('ruolo') >= 0 ? col('ruolo') : col('role');
-        const codeIdx = col('codiceagente') >= 0 ? col('codiceagente') : (col('codice agente') >= 0 ? col('codice agente') : col('codice'));
-        const emailIdx = col('email');
-        const activeIdx = col('attivo');
-
-        const parsedUsers = [];
-        for (let i = headerIdx + 1; i < rows.length; i++) {
-          const r = rows[i] || [];
-          const username = userIdx >= 0 && r[userIdx] ? String(r[userIdx]).trim() : '';
-          const password = passIdx >= 0 && r[passIdx] ? String(r[passIdx]).trim() : '';
-          if (!username || !password) continue;
-
-          if (activeIdx >= 0 && r[activeIdx]) {
-            const act = String(r[activeIdx]).trim().toUpperCase();
-            if (act === 'NO' || act === 'FALSE' || act === '0' || act.includes('DISATTIV')) {
-              continue;
-            }
-          }
-
-          const rawRole = roleIdx >= 0 && r[roleIdx] ? String(r[roleIdx]).trim().toLowerCase() : 'agent';
-          const role = (rawRole.includes('admin') || rawRole.includes('amministra')) ? 'admin' : (rawRole.includes('area') ? 'area_head' : 'agent');
-          const codeVal = codeIdx >= 0 && r[codeIdx] ? String(r[codeIdx]).trim() : '';
-          const agentCode = codeVal || (role === 'admin' ? 'TUTTI' : 'AG01');
-          const name = nameIdx >= 0 && r[nameIdx] ? String(r[nameIdx]).trim() : username;
-          const email = emailIdx >= 0 && r[emailIdx] ? String(r[emailIdx]).trim() : '';
-
-          parsedUsers.push({
-            username,
-            password,
-            name,
-            role,
-            agentCode,
-            email
-          });
-        }
-
-        if (parsedUsers.length > 0) {
-          console.log(`[getUsers] Caricati ${parsedUsers.length} utenti da Google Fogli tab '${tab}'`);
-          usersCache = { timestamp: now, users: parsedUsers };
-          return parsedUsers;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn(`[getUsers] Impossibile leggere foglio '${tab}':`, err.message);
-  }
-
-  if (usersCache.users.length > 0) {
-    return usersCache.users;
-  }
-
-  try {
-    const list = JSON.parse(process.env.PILOT_USERS || '[]');
-    if (list.length) return list;
-  } catch {}
-
-  return [
-    { username: 'amministratore', password: 'Clima1997', name: 'Amministratore Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'administrator', password: 'Lisa4882', name: 'SuperAdmin Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'admin', password: 'clw2026!', name: 'Admin Climawell', role: 'admin', agentCode: 'TUTTI' },
-    { username: 'f.pontrelli', password: 'clw2026!', name: 'Francesco Pontrelli', role: 'agent', agentCode: '217' }
-  ];
 }
 
 // -------------------------------------------------------------
@@ -653,18 +534,10 @@ async function loadSeed() {
   }
 }
 
-let companyCache = { timestamp: 0, company: null };
-
 // 1. Fetch Company
 async function fetchCompanyData(customId, customTab) {
   const id = cleanEnvId(customId) || runtimeConfig.company.spreadsheetId || OFFICIAL_SYSTEM_SPREADSHEETS.company.spreadsheetId;
   const tab = customTab || runtimeConfig.company.tab || OFFICIAL_SYSTEM_SPREADSHEETS.company.tab || 'Dati azienda';
-
-  const now = Date.now();
-  if (!customId && !customTab && companyCache.company && (now - companyCache.timestamp < 60000)) {
-    return { ok: true, source: 'google-sheets-cache', company: companyCache.company };
-  }
-
   try {
     const rows = await readRange(id, `'${tab}'!A1:D45`);
     const out = {};
@@ -674,22 +547,10 @@ async function fetchCompanyData(customId, customTab) {
       }
     }
     if (Object.keys(out).length > 0) {
-      if (!out.city && out.province) {
-        out.city = out.province;
-      }
-      if (!out.footerText) {
-        out.footerText = `© ${out.displayName || out.companyName || 'Climawell'} — Sistema Gestionale Rete Vendite`;
-      }
-      if (!customId && !customTab) {
-        companyCache = { timestamp: now, company: out };
-      }
       return { ok: true, source: 'google-sheets', company: out };
     }
   } catch (err) {
     console.warn('Google Sheets company read error:', err.message);
-  }
-  if (companyCache.company) {
-    return { ok: true, source: 'google-sheets-cache', company: companyCache.company };
   }
   const seed = await loadSeed();
   return { ok: true, source: 'offline-cache', company: seed.company || {} };
@@ -793,75 +654,12 @@ async function fetchAgentsData(customId, customTab) {
   }
 }
 
-// Helper per classificazione automatica Aziende (P.IVA/B2B) vs Privati (Occasionali/B2C) e Target Promozionale
-function classifyCustomerRecord({ name = '', activity = '', vatNumber = '', taxCode = '', sdi = '', type = '' } = {}) {
-  const vat = String(vatNumber || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  const cf = String(taxCode || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  const nm = String(name || '').toUpperCase();
-  const act = String(activity || '').toUpperCase();
-  const tp = String(type || '').toUpperCase();
-
-  // 1. Partita IVA italiana (11 cifre o IT + 11 cifre) o estera valida
-  const hasValidVat = (vat.length === 11 && /^\d{11}$/.test(vat)) || (vat.startsWith('IT') && vat.length === 13 && /^\d{11}$/.test(vat.slice(2))) || (vat.length >= 8 && /^[A-Z0-9]+$/.test(vat) && !cf.includes(vat));
-
-  // 2. Codice Fiscale numerico di 11 cifre (tipico di società ed enti giuridici)
-  const isNumericCfCompany = cf.length === 11 && /^\d{11}$/.test(cf);
-
-  // 3. Codice Fiscale di persona fisica (16 caratteri alfanumerici)
-  const isPersonCf = cf.length === 16 && /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/.test(cf);
-
-  // 4. Indicatori di ragione sociale aziendale / ditta / studio
-  const companyRegex = /\b(S\.?R\.?L\.?|S\.?P\.?A\.?|S\.?N\.?C\.?|S\.?A\.?S\.?|S\.?S\.?|COOP|COOPERATIVA|SOC\.?|SOCIETA|DITTA|IMPRESA|STUDIO|OFFICINA|IMPIANTI|IDRAULICA|TERMOIDRAULICA|CLIMA|CONDIZIONAMENTO|EDIL|EDILIZIA|COSTRUZIONI|INSTALLAZIONI|SERVICE|COMMERCIO|COMMERCIALE|GROUP|SRLS)\b/i;
-  const hasCompanyKeyword = companyRegex.test(nm) || companyRegex.test(act);
-
-  let isCompany = false;
-  if (hasValidVat || isNumericCfCompany || hasCompanyKeyword) {
-    isCompany = true;
-  } else if (isPersonCf && !hasValidVat) {
-    isCompany = false;
-  } else if (!vat && !cf) {
-    isCompany = hasCompanyKeyword;
-  } else {
-    isCompany = Boolean(vat && vat.length >= 8);
-  }
-
-  const category = isCompany ? 'azienda' : 'privato';
-  const categoryLabel = isCompany ? 'Azienda / P.IVA' : 'Privato / Occasionale';
-
-  // 5. Cluster Promozionale & Settore Campagna
-  let promoCluster = 'b2b_aziende';
-  let promoClusterLabel = 'Forniture Aziendali & Industria';
-  const combined = `${nm} ${act} ${tp}`.toUpperCase();
-
-  if (category === 'privato') {
-    promoCluster = 'residenziale_privati';
-    promoClusterLabel = 'Clima & Caldaie Residenziale';
-  } else if (combined.includes('IDRAULIC') || combined.includes('TERMO') || combined.includes('CLIMA') || combined.includes('CALDAI') || combined.includes('SANITAR') || combined.includes('POMP')) {
-    promoCluster = 'idraulica_clima';
-    promoClusterLabel = 'Termoidraulica & Climatizzazione B2B';
-  } else if (combined.includes('ELETT') || combined.includes('FOTOVOLT') || combined.includes('ENERG') || combined.includes('DOMOTIC') || combined.includes('LUCE') || combined.includes('QUADRI')) {
-    promoCluster = 'elettrico_rinnovabili';
-    promoClusterLabel = 'Elettrico & Energie Rinnovabili';
-  } else if (combined.includes('EDIL') || combined.includes('COSTRUZ') || combined.includes('CANTIERE') || combined.includes('RESTAURO') || combined.includes('PAVIMENT') || combined.includes('INTONACO')) {
-    promoCluster = 'edile_cantieri';
-    promoClusterLabel = 'Imprese Edili & Cantieri';
-  }
-
-  return {
-    isCompany,
-    category,
-    categoryLabel,
-    promoCluster,
-    promoClusterLabel
-  };
-}
-
 // 3. Fetch Customers
 async function fetchCustomersData(customId, customTab, user = null) {
   const id = cleanEnvId(customId) || runtimeConfig.customers.spreadsheetId || OFFICIAL_SYSTEM_SPREADSHEETS.customers.spreadsheetId;
   const tab = customTab || runtimeConfig.customers.tab || OFFICIAL_SYSTEM_SPREADSHEETS.customers.tab || 'clienti';
   try {
-    const rows = await readRange(id, `'${tab}'!A1:Z3000`);
+    const rows = await readRange(id, `'${tab}'!A1:Z500`);
     if (rows.length > 1) {
       const header = rows[0].map(c => String(c).toLowerCase().trim());
       const col = name => header.findIndex(h => h.includes(name));
@@ -869,8 +667,7 @@ async function fetchCustomersData(customId, customTab, user = null) {
       const nameIdx = col('ragione sociale') >= 0 ? col('ragione sociale') : col('cliente');
       const typeIdx = col('tipo');
       const actIdx = col('attivit');
-      const agentCodeIdx = col('codiceagente') >= 0 ? col('codiceagente') : (col('codice agente') >= 0 ? col('codice agente') : -1);
-      const agentIdx = header.findIndex(h => h === 'agente' || (h.includes('agente') && !h.includes('codice')));
+      const agentIdx = col('agente');
       const addressIdx = col('indirizzo');
       const capIdx = col('cap');
       const cityIdx = col('citt');
@@ -890,34 +687,17 @@ async function fetchCustomersData(customId, customTab, user = null) {
         const r = rows[i];
         if (!r || r[codeIdx] == null || String(r[codeIdx]).trim() === '') continue;
         const codeVal = String(r[codeIdx]).replace(/\.0$/, '').trim();
-        const agentVal = agentCodeIdx >= 0 && r[agentCodeIdx] ? String(r[agentCodeIdx]).trim() : (agentIdx >= 0 ? String(r[agentIdx] || '').trim() : '');
+        const agentVal = String(r[agentIdx] || '').trim();
         const agentId = agentVal ? normalizeAgentId(agentVal) : 'UNASSIGNED';
-        const agentName = agentIdx >= 0 ? String(r[agentIdx] || '').trim() : '';
-
-        const nameVal = String(r[nameIdx] || '').trim();
-        const actVal = String(r[actIdx] || '').trim();
-        const typeVal = String(r[typeIdx] || '').trim();
-        const vatVal = vatIdx >= 0 ? String(r[vatIdx] || '').trim() : '';
-        const taxVal = taxIdx >= 0 ? String(r[taxIdx] || '').trim() : '';
-        const sdiVal = sdiIdx >= 0 ? String(r[sdiIdx] || '').trim() : '';
-
-        const classification = classifyCustomerRecord({
-          name: nameVal,
-          activity: actVal,
-          type: typeVal,
-          vatNumber: vatVal,
-          taxCode: taxVal,
-          sdi: sdiVal
-        });
 
         customers.push({
           id: codeVal,
           code: codeVal,
-          name: nameVal,
-          type: typeVal,
-          activity: actVal,
+          name: String(r[nameIdx] || '').trim(),
+          type: String(r[typeIdx] || '').trim(),
+          activity: String(r[actIdx] || '').trim(),
           agentId,
-          sourceAgent: agentName || agentVal,
+          sourceAgent: agentVal,
           address: String(r[addressIdx] || '').trim(),
           postalCode: String(r[capIdx] || '').replace(/\.0$/, '').trim(),
           city: String(r[cityIdx] || '').trim(),
@@ -925,17 +705,12 @@ async function fetchCustomersData(customId, customTab, user = null) {
           phone: String(r[phoneIdx] || '').trim(),
           mobile: String(r[mobileIdx] || '').trim(),
           email: String(r[emailIdx] || '').trim(),
-          sdi: sdiVal,
+          sdi: sdiIdx >= 0 ? String(r[sdiIdx] || '').trim() : '',
           iban: ibanIdx >= 0 ? String(r[ibanIdx] || '').trim() : '',
           bank: bankIdx >= 0 ? String(r[bankIdx] || '').trim() : '',
-          vatNumber: vatVal,
-          taxCode: taxVal,
-          payment: payIdx >= 0 ? String(r[payIdx] || '').trim() : '',
-          isCompany: classification.isCompany,
-          category: classification.category,
-          categoryLabel: classification.categoryLabel,
-          promoCluster: classification.promoCluster,
-          promoClusterLabel: classification.promoClusterLabel
+          vatNumber: vatIdx >= 0 ? String(r[vatIdx] || '').trim() : '',
+          taxCode: taxIdx >= 0 ? String(r[taxIdx] || '').trim() : '',
+          payment: payIdx >= 0 ? String(r[payIdx] || '').trim() : ''
         });
       }
 
@@ -971,7 +746,7 @@ async function fetchProductsData(customId, customTab) {
   const id = cleanEnvId(customId) || runtimeConfig.products.spreadsheetId || OFFICIAL_SYSTEM_SPREADSHEETS.products.spreadsheetId;
   const tab = customTab || runtimeConfig.products.tab || OFFICIAL_SYSTEM_SPREADSHEETS.products.tab || 'q_listino_prezzi_catalogo';
   try {
-    const rows = await readRange(id, `'${tab}'!A1:AN2000`);
+    const rows = await readRange(id, `'${tab}'!A1:AN500`);
     if (rows.length > 1) {
       const header = rows[0].map(c => String(c).toLowerCase().trim());
       const col = name => header.findIndex(h => h.includes(name));
@@ -1136,7 +911,7 @@ async function runDiagnostics(testCfg = {}) {
       status: 'warning',
       icon: '🟡',
       label: 'Copia locale attiva',
-      message: 'Uso dati locali di fallback (Climawell)',
+      message: 'Uso dati locali di fallback (Pascal Milano 2)',
       details: 'Connessione Google Sheets API non attiva'
     };
   }
@@ -1279,47 +1054,32 @@ async function runDiagnostics(testCfg = {}) {
   // Check 6: Repository
   if (hasGoogle) {
     try {
-      const regId = (cfg.registerId && (cfg.registerId.includes('1Ohp') || cfg.registerId.includes('10hp')))
-        ? OFFICIAL_SYSTEM_SPREADSHEETS.repository.spreadsheetId
-        : cleanEnvId(cfg.registerId, OFFICIAL_SYSTEM_SPREADSHEETS.repository.spreadsheetId);
+      // Check headers on Offerte and Ordini
+      await ensureHeader(cfg.registerTabOffers, registerHeaders, cfg.registerId);
+      await ensureHeader(cfg.registerTabOrders, registerHeaders, cfg.registerId);
 
-      const meta = await sheets(`${regId}?fields=sheets.properties`).catch(() => null);
+      const meta = await sheets(`${cfg.registerId}?fields=sheets.properties`).catch(() => null);
       const tabInfos = (meta?.sheets || []).map(s => ({
         title: s.properties?.title,
         sheetId: s.properties?.sheetId,
         rowCount: s.properties?.gridProperties?.rowCount
       }));
-      const tabTitles = tabInfos.map(t => String(t.title || '').trim());
-
-      const hasDocTes = tabTitles.some(t => t.toLowerCase() === 'doctes');
-      const hasDocRig = tabTitles.some(t => t.toLowerCase() === 'docrig');
-
-      let filledCount = 0;
-      let activeSchema = 'DocTes / DocRig (Plus 2000)';
-
-      if (hasDocTes) {
-        const tesRows = await readRange(regId, "'DocTes'!A1:B1005").catch(() => []);
-        filledCount = Math.max(0, tesRows.length - 1);
-        activeSchema = hasDocRig ? 'Testata (DocTes) & Righe (DocRig)' : 'Testata (DocTes)';
-      } else {
-        // Fallback su schede tradizionali
-        const tabOff = cfg.registerTabOffers || 'Offerte';
-        const tabOrd = cfg.registerTabOrders || 'Ordini';
-        await ensureHeader(tabOff, registerHeaders, regId).catch(() => {});
-        await ensureHeader(tabOrd, registerHeaders, regId).catch(() => {});
-        const offerRows = await readRange(regId, `'${tabOff}'!A1:B1005`).catch(() => []);
-        filledCount = Math.max(0, offerRows.length - 1);
-        activeSchema = `Schede "${tabOff}" e "${tabOrd}"`;
+      const offerRows = await readRange(cfg.registerId, `'${cfg.registerTabOffers}'!A1:B1005`).catch(() => []);
+      const filledRows = [];
+      for (let i = 0; i < offerRows.length; i++) {
+        const a = offerRows[i]?.[0], b = offerRows[i]?.[1];
+        if (a || b) filledRows.push({ rowNumber: i + 1, colA: a, colB: b });
       }
 
       results.repository = {
         status: 'ok',
         icon: '🟢',
         label: 'Scrittura attiva',
-        message: `Repository collegato (${activeSchema})`,
-        details: `Foglio ID: ${regId} · ${activeSchema} (${filledCount} record)`,
+        message: 'Permessi di scrittura e struttura schede confermati',
+        details: `Foglio ID: ${cfg.registerId} · Schede "${cfg.registerTabOffers}" e "${cfg.registerTabOrders}"`,
         tabs: tabInfos,
-        filledRowsCount: filledCount
+        filledRowsCount: filledRows.length,
+        filledRows: filledRows.slice(-10)
       };
     } catch (err) {
       results.repository = {
@@ -1327,7 +1087,7 @@ async function runDiagnostics(testCfg = {}) {
         icon: '🔴',
         label: 'Errore repository',
         message: err.message,
-        details: `Verificare che il foglio ID ${cfg.registerId || OFFICIAL_SYSTEM_SPREADSHEETS.repository.spreadsheetId} sia condiviso come Editor con l'account di servizio`
+        details: `Verificare che il foglio ID ${cfg.registerId} sia condiviso come Editor con l'account di servizio`
       };
     }
   } else {
@@ -1380,149 +1140,9 @@ async function ensureHeader(tab, headers, customRegId) {
   }
 }
 
-async function listDocs(tab, user, customId, docKind = null) {
+async function listDocs(tab, user, customId) {
   const regId = cleanEnvId(customId) || runtimeConfig.repository.spreadsheetId || OFFICIAL_SYSTEM_SPREADSHEETS.repository.spreadsheetId;
   try {
-    let filterKind = docKind;
-    if (!filterKind) {
-      if (tab === 'Offerte' || tab === 'OFC' || tab === 'offers') filterKind = 'offer';
-      else if (tab === 'Ordini' || tab === 'OCL' || tab === 'orders') filterKind = 'order';
-    }
-
-    // Verifica se il foglio ha la nuova struttura Plus 2000 (DocTes e DocRig)
-    let isDocTesStructure = false;
-    let tesRows = [];
-    try {
-      tesRows = await readRange(regId, "'DocTes'!A1:R1000");
-      if (tesRows && tesRows.length > 0) {
-        const topRow = (tesRows[0] || []).map(c => String(c || '').toLowerCase().trim());
-        if (topRow.includes('id_documento') || topRow.includes('tpdoc')) {
-          isDocTesStructure = true;
-        }
-      }
-    } catch {}
-
-    if (isDocTesStructure) {
-      // Legge anche le righe da DocRig
-      let rigRows = [];
-      try {
-        rigRows = await readRange(regId, "'DocRig'!A1:P2000");
-      } catch {}
-      const linesByDoc = new Map();
-      if (rigRows && rigRows.length > 1) {
-        for (let i = 1; i < rigRows.length; i++) {
-          const r = rigRows[i];
-          if (!r || !r[0]) continue;
-          const docId = String(r[0]).trim();
-          if (!linesByDoc.has(docId)) linesByDoc.set(docId, []);
-          linesByDoc.get(docId).push({
-            code: cleanCell(r[3]),
-            caId: cleanCell(r[4]),
-            description: cleanCell(r[5]),
-            um: cleanCell(r[6]) || 'PZ',
-            quantity: Number(cleanCell(r[7])) || 1,
-            listPrice: Number(cleanCell(r[8])) || 0,
-            discounts: [Number(cleanCell(r[9])) || 0, Number(cleanCell(r[10])) || 0],
-            net: Number(cleanCell(r[11])) || 0,
-            total: Number(cleanCell(r[12])) || 0,
-            vat: cleanCell(r[13]) || '22',
-            deliveryDate: cleanCell(r[14]),
-            notes: cleanCell(r[15])
-          });
-        }
-      }
-
-      const userRole = user?.role || 'agent';
-      const userAgentCode = normalizeAgentId(user?.agentCode || '');
-      const allowedAgents = new Set();
-      if (userRole !== 'admin') {
-        if (userAgentCode) allowedAgents.add(userAgentCode);
-        const seed = await loadSeed();
-        const hier = seed.hierarchy || { AG01: ['AG02'], AG03: ['AG04', 'AG05', 'AG06', 'AG07', 'AG08', 'AG09', 'AG10', 'AG11'] };
-        if (hier[userAgentCode]) {
-          for (const sub of hier[userAgentCode]) allowedAgents.add(normalizeAgentId(sub));
-        }
-      }
-
-      const docs = [];
-      for (let i = 1; i < tesRows.length; i++) {
-        const r = tesRows[i];
-        if (!r || !r.some(cell => String(cell || '').trim())) continue;
-        const id = cleanCell(r[0]);
-        if (!id) continue;
-        const tpDoc = String(cleanCell(r[1])).toUpperCase();
-
-        const isOfferDoc = tpDoc === 'OFC' || tpDoc.startsWith('OF') || tpDoc.includes('OFF');
-        const isOrderDoc = tpDoc === 'OCL' || tpDoc === 'ORC' || tpDoc === 'ORD' || tpDoc.startsWith('OC') || tpDoc.startsWith('OR') || tpDoc.includes('ORD');
-
-        if (filterKind === 'offer' && !isOfferDoc) continue;
-        if (filterKind === 'order' && !isOrderDoc) continue;
-
-        const agCode = normalizeAgentId(cleanCell(r[3]));
-        if (userRole !== 'admin' && allowedAgents.size > 0 && agCode && !allowedAgents.has(agCode)) {
-          continue;
-        }
-
-        const dateDoc = cleanCell(r[2]);
-        const agName = cleanCell(r[4]);
-        const custId = cleanCell(r[5]);
-        const custName = cleanCell(r[6]);
-        const payment = cleanCell(r[7]);
-        const listino = cleanCell(r[8]);
-        const total = Number(cleanCell(r[10])) || Number(cleanCell(r[9])) || 0;
-        const ref = cleanCell(r[11]);
-        const notes = cleanCell(r[12]);
-        const statoSync = cleanCell(r[13]) || 'DA_SINCRONIZZARE';
-        const dataSync = cleanCell(r[14]);
-        const docIdPlus = cleanCell(r[15]);
-        const numDocPlus = cleanCell(r[16]);
-        const logErrore = cleanCell(r[17]);
-
-        const lines = linesByDoc.get(id) || [];
-        const docType = isOfferDoc ? 'Offerta' : 'Ordine';
-
-        docs.push({
-          id,
-          number: id,
-          type: docType,
-          docType,
-          tpDoc,
-          offer_number: isOfferDoc ? id : undefined,
-          order_number: isOrderDoc ? id : undefined,
-          offerNumber: isOfferDoc ? id : undefined,
-          orderNumber: isOrderDoc ? id : undefined,
-          submitted_at: dateDoc,
-          updated_at: dataSync || dateDoc,
-          agent_code: agCode,
-          agent_name: agName,
-          customer_id: custId,
-          customer_name: custName,
-          customerName: custName,
-          total,
-          currency: 'EUR',
-          status: statoSync === 'SINCRONIZZATO' ? 'approved' : statoSync === 'ERRORE' ? 'rejected' : 'submitted',
-          raw_status: statoSync,
-          outcome: statoSync === 'SINCRONIZZATO' ? `Plus N.${numDocPlus}` : statoSync,
-          notes,
-          sync: {
-            stato: statoSync,
-            data: dataSync,
-            docIdPlus,
-            numeroDocPlus: numDocPlus,
-            logErrore
-          },
-          payload: {
-            payment,
-            listino,
-            customerRef: ref,
-            notes,
-            lines
-          }
-        });
-      }
-      return docs;
-    }
-
     const rawRows = await readRange(regId, `'${tab}'!A1:Z1000`);
     if (!rawRows || !rawRows.length) return [];
 
@@ -1750,72 +1370,6 @@ async function createDoc(tab, body, user, customId) {
   const payloadStr = JSON.stringify(body.payload || {});
 
   try {
-    // Verifica se il foglio ha la nuova struttura Plus 2000 (DocTes e DocRig)
-    let isDocTesStructure = false;
-    try {
-      const tesProbe = await readRange(regId, "'DocTes'!A1:D3");
-      if (tesProbe && tesProbe.length > 0) {
-        const topRow = (tesProbe[0] || []).map(c => String(c || '').toLowerCase().trim());
-        if (topRow.includes('id_documento') || topRow.includes('tpdoc')) {
-          isDocTesStructure = true;
-        }
-      }
-    } catch {}
-
-    if (isDocTesStructure) {
-      const tpDoc = (tab === 'Ordini' || body.orderNumber || body.documentType === 'order') ? 'OCL' : 'OFC';
-      const nowDate = now.slice(0, 10);
-      const lines = body.payload?.lines || [];
-      const imponibile = lines.reduce((acc, l) => acc + (Number(l.quantity || 1) * Number(l.net || 0)), 0) || total;
-
-      const tesRow = [
-        number,                             // ID_Documento
-        tpDoc,                              // TpDoc ('OCL' / 'OFC')
-        nowDate,                            // DataDoc
-        agentCode,                          // CodiceAgente
-        agentName,                          // NomeAgente
-        customerId,                         // CodiceCliente (JConto)
-        customerName,                       // RagioneSociale
-        body.payload?.payment || '',        // CondizionePagamento
-        body.payload?.listino || '01',      // CodiceListino
-        imponibile,                         // TotaleImponibile
-        total,                              // TotaleDocumento
-        body.payload?.customerRef || body.originOfferId || '', // RiferimentoCliente
-        body.payload?.notes || '',          // Note
-        'DA_SINCRONIZZARE',                 // StatoSync
-        '',                                 // DataSync
-        '',                                 // DocId_Plus
-        '',                                 // NumeroDoc_Plus
-        ''                                  // LogErrore
-      ];
-
-      await append(regId, "'DocTes'!A:R", [tesRow]);
-
-      if (lines.length > 0) {
-        const rigRows = lines.map((l, idx) => [
-          number,                                      // ID_Documento
-          idx + 1,                                     // Riga
-          tpDoc,                                       // TpDoc
-          l.code || '',                                // CodiceArticolo (Ca)
-          l.caId || l.id || '',                        // CaId
-          l.description || '',                         // DescrizioneArticolo (DesArt)
-          l.um || 'PZ',                                // Um
-          Number(l.quantity || 1),                     // Quantita (Qt)
-          Number(l.listPrice || 0),                    // PrezzoLordo (PzLordo)
-          Number(l.discounts?.[0] || l.discount || 0), // Sconto1
-          Number(l.discounts?.[1] || 0),                // Sconto2
-          Number(l.net || 0),                          // PrezzoNetto (PzNetto)
-          Number((l.quantity || 1) * (l.net || 0)),    // TotaleRiga (ATotale)
-          String(l.vat || '22'),                       // CodiceIva (JIva)
-          l.deliveryDate || '',                        // DataConsegna
-          l.notes || ''                                // NoteRiga
-        ]);
-        await append(regId, "'DocRig'!A:P", rigRows);
-      }
-
-      return json(201, { ok: true, id, number, tpDoc, linesCount: lines.length, timestamp: now });
-    }
-
     const rawRows = await readRange(regId, `'${tab}'!A1:Z10`);
     let headerIdx = -1;
     for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
@@ -2819,7 +2373,7 @@ async function setupWarehouseSpreadsheet(whId) {
       const nowStr = new Date().toLocaleDateString('it-IT') + ' ' + new Date().toLocaleTimeString('it-IT');
       const infoRows = [
         ['🏭 REGISTRO UFFICIALE MAGAZZINO, LOGISTICA E PRODUZIONE', '', ''],
-        ['Azienda:', 'Climawell', ''],
+        ['Azienda:', 'Pascal Cosmesi International', ''],
         ['Stato Sistema:', '🟢 Connesso e Sincronizzato in tempo reale con OrderSender', ''],
         ['Spreadsheet ID:', whId, ''],
         ['Data Inizializzazione:', nowStr, ''],
@@ -3545,15 +3099,9 @@ export default async (request, context) => {
     // Auth endpoints
     if (path === 'login' && request.method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const inputUser = String(body.username || '').trim().toLowerCase();
-      const inputPass = String(body.password || '').trim();
-      const allUsers = await getUsers();
-      const user = allUsers.find(x => 
-        String(x.username || '').trim().toLowerCase() === inputUser && 
-        String(x.password || '').trim() === inputPass
-      );
+      const user = users().find(x => x.username === body.username && x.password === body.password);
       if (!user) {
-        return json(401, { error: 'Credenziali non valide. Riprova con i dati forniti dall’amministrazione o controlla il foglio Utenti su Google Drive.' });
+        return json(401, { error: 'Credenziali non valide. Riprova con i dati forniti dall’amministrazione.' });
       }
       const token = createSessionToken(user);
       return json(200, { ok: true, user: { username: user.username, name: user.name, role: user.role, agentCode: user.agentCode }, token }, { 'set-cookie': sessionCookie(user) });
@@ -3561,25 +3109,6 @@ export default async (request, context) => {
 
     if (path === 'logout') {
       return json(200, { ok: true }, { 'set-cookie': 'oa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0' });
-    }
-
-    if (path === 'users' && request.method === 'GET') {
-      const u = session(request);
-      if (!u || u.role !== 'admin') {
-        return json(403, { error: 'Accesso riservato agli amministratori' });
-      }
-      if (url.searchParams.get('refresh') === '1') {
-        usersCache.timestamp = 0;
-      }
-      const allUsers = await getUsers();
-      const safeList = allUsers.map(x => ({
-        username: x.username,
-        name: x.name,
-        role: x.role,
-        agentCode: x.agentCode,
-        email: x.email
-      }));
-      return json(200, { ok: true, count: safeList.length, users: safeList });
     }
 
     // Diagnostics endpoint (accessible for admin check & configurazione)
@@ -3688,13 +3217,13 @@ export default async (request, context) => {
     if (path === 'offers' && request.method === 'GET') {
       if (!user) return json(401, { error: 'Accesso non autorizzato' });
       const customId = url.searchParams.get('id') || undefined;
-      return json(200, { offers: await listDocs(runtimeConfig.repository.tabOffers || 'Offerte', user, customId, 'offer'), user });
+      return json(200, { offers: await listDocs(runtimeConfig.repository.tabOffers || 'Offerte', user, customId), user });
     }
 
     if (path === 'orders' && request.method === 'GET') {
       if (!user) return json(401, { error: 'Accesso non autorizzato' });
       const customId = url.searchParams.get('id') || undefined;
-      return json(200, { orders: await listDocs(runtimeConfig.repository.tabOrders || 'Ordini', user, customId, 'order'), user });
+      return json(200, { orders: await listDocs(runtimeConfig.repository.tabOrders || 'Ordini', user, customId), user });
     }
 
     if (path === 'offers' && request.method === 'POST') {

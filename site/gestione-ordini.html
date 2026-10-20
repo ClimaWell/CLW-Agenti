@@ -6,8 +6,6 @@
   <title>Gestione Ordini & Magazzino — Offerte Agenti</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/supabaseClient.js"></script>
   <style>
     .workflow-shell { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
     .workflow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px; }
@@ -554,7 +552,7 @@
       </div>
     </div>
     <div class="heading-actions">
-      <a class="btn secondary" href="/area-sviluppo.html" style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🚀 Area di Sviluppo</a>
+      <a class="btn secondary" href="/pianificazione-produzione.html">🏭 Produzione & Scorte</a>
       <a class="btn secondary" href="/">← Torna alle pratiche</a>
       <a class="btn secondary" href="/configurazione.html">⚙️ Configurazione</a>
     </div>
@@ -760,7 +758,7 @@
   </main>
 
   <footer style="text-align: center; padding: 24px 16px 36px; color: #64748b; font-size: 0.85rem; border-top: 1px solid #e2e8f0; margin-top: 36px;">
-    <div id="footerText">© Climawell — Gestione Ordini, Magazzino & DDT</div>
+    <div>© Pascal Milano / Pascal Cosmesi International — Gestione Ordini, Magazzino & DDT</div>
     <div style="margin-top: 6px;">
       <a href="/privacy.html" style="color: #0284c7; text-decoration: none; font-weight: 500;">🔒 Informativa Privacy & Protezione Dati (GDPR Reg. UE 2016/679)</a>
     </div>
@@ -997,7 +995,7 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" onclick="$('statusModal').close()">Annulla</button>
         <button type="button" id="btnSaveAndPrintDdt" class="btn secondary" style="background:#e0f2fe; color:#0369a1; border-color:#7dd3fc; font-weight:750;">🖨️ Salva & Stampa DDT</button>
-        <button type="submit" id="btnSaveStatus" class="btn primary">💾 Salva su Supabase</button>
+        <button type="submit" id="btnSaveStatus" class="btn primary">💾 Salva su Google Sheets</button>
       </div>
     </form>
   </dialog>
@@ -1087,16 +1085,16 @@
     let allOffers = [];
     let allCustomers = [];
     let companyProfile = {
-      displayName: 'Climawell',
-      companyName: 'Climawell',
-      address: 'Via delle Tre Pietre 2/C',
-      postalCode: '50149',
-      city: 'Firenze',
+      displayName: 'Pascal Cosmesi International',
+      companyName: 'Pascal Milano',
+      address: 'Via F.lli Bandiera 24',
+      postalCode: '50100',
+      city: 'Sovigliana',
       province: 'FI',
       phone: '055/42.89.074',
-      vatNumber: '04732490489',
-      website: 'www.climawell.it',
-      email: 'info@climawell.it'
+      vatNumber: '1234567890',
+      website: 'www.pascalmilano.it',
+      email: 'info@pascalmilano.it'
     };
     let currentFilter = 'all';
 
@@ -1110,21 +1108,23 @@
 
     async function loadAuxiliaryData() {
       try {
-        if (window.ClwData && window.ClwData.isConfigured()) {
-          const [comp, custs, prods] = await Promise.all([
-            window.ClwData.getCompany().catch(() => null),
-            window.ClwData.getCustomers().catch(() => []),
-            window.ClwData.getProducts().catch(() => [])
-          ]);
-          if (comp) {
-            companyProfile = { ...companyProfile, ...comp };
-            if ($('footerText')) {
-              $('footerText').textContent = comp.footer_text || `© ${comp.display_name || comp.company_name || 'Climawell'} — Gestione Ordini, Magazzino & DDT`;
-            }
-          }
-          if (custs && custs.length > 0) allCustomers = custs;
-          if (prods && prods.length > 0) window.catalogProductsMap = Object.fromEntries(prods.map(p => [p.code, p]));
-          return;
+        const [compRes, custRes, offRes, prodRes] = await Promise.all([
+          fetch('/api/company').then(r => r.json()).catch(() => ({})),
+          fetch('/api/customers').then(r => r.json()).catch(() => ({})),
+          fetch('/api/offers').then(r => r.json()).catch(() => ({})),
+          fetch('/api/products').then(r => r.json()).catch(() => ({}))
+        ]);
+        if (compRes?.company && Object.keys(compRes.company).length > 0) {
+          companyProfile = { ...companyProfile, ...compRes.company };
+        }
+        if (custRes?.customers && Array.isArray(custRes.customers)) {
+          allCustomers = custRes.customers;
+        }
+        if (offRes?.offers && Array.isArray(offRes.offers)) {
+          allOffers = offRes.offers;
+        }
+        if (prodRes?.products && Array.isArray(prodRes.products)) {
+          window.catalogProductsMap = Object.fromEntries(prodRes.products.map(p => [p.code, p]));
         }
       } catch (e) {
         console.warn('Caricamento dati ausiliari non bloccante:', e);
@@ -1134,59 +1134,17 @@
     async function loadOrders() {
       try {
         loadAuxiliaryData();
-        
-        let loadedFromSupabase = false;
-        if (window.ClwData && window.ClwData.isConfigured()) {
-          try {
-            const client = window.clwSupabase || (window.supabase && window.supabase.createClient(window.ClwData.getConfig().url, window.ClwData.getConfig().key));
-            if (client) {
-              const { data: supOrders, error: supErr } = await client
-                .from('documents')
-                .select('*')
-                .eq('document_type', 'OCL')
-                .order('created_at', { ascending: false });
-
-              if (!supErr && Array.isArray(supOrders)) {
-                allOrders = supOrders.map(d => ({
-                  id: d.number,
-                  number: d.number,
-                  customer_name: d.customer_name,
-                  customer_code: d.customer_code,
-                  agent_name: d.agent_name,
-                  agent_code: d.agent_code,
-                  total: Number(d.total) || 0,
-                  subtotal: Number(d.subtotal) || 0,
-                  workflow_status: (d.status === 'In Preparazione' ? 'magazzino' : (d.status === 'Spedito' ? 'spedito' : (d.status === 'Approvato' ? 'approvato' : 'ricevuto'))),
-                  submitted_at: d.created_at || d.document_date,
-                  notes: d.notes || '',
-                  shipping_date: d.shipping_date || '',
-                  carrier: d.carrier || '',
-                  ddt_number: d.ddt_number || '',
-                  tracking_number: d.tracking_number || ''
-                }));
-                updateStats();
-                renderOrders();
-                loadedFromSupabase = true;
-              }
-            }
-          } catch (supErr) {
-            console.warn('[Supabase] Errore ordini in gestione-ordini, fallback su API:', supErr);
-          }
+        if (window.companyConfigPromise) {
+          try { await window.companyConfigPromise; } catch {}
         }
-
-        if (!loadedFromSupabase) {
-          if (window.companyConfigPromise) {
-            try { await window.companyConfigPromise; } catch {}
-          }
-          const rawRepo = window.companyConfig?.repository?.spreadsheetId;
-          const repoId = (rawRepo && rawRepo.length >= 20 && !rawRepo.includes('1mnW')) ? rawRepo : '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc';
-          const res = await fetch(`/api/orders?id=${encodeURIComponent(repoId)}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          allOrders = data.orders || [];
-          updateStats();
-          renderOrders();
-        }
+        const rawRepo = window.companyConfig?.repository?.spreadsheetId;
+        const repoId = (rawRepo && rawRepo.length >= 20 && !rawRepo.includes('1mnW')) ? rawRepo : '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc';
+        const res = await fetch(`/api/orders?id=${encodeURIComponent(repoId)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        allOrders = data.orders || [];
+        updateStats();
+        renderOrders();
       } catch (err) {
         console.error(err);
         $('ordersContainer').innerHTML = `
@@ -1447,47 +1405,6 @@
 
     async function saveStatusUpdate(orderId, updateData) {
       try {
-        if (window.ClwData && window.ClwData.isConfigured()) {
-          const client = window.clwSupabase || (window.supabase && window.supabase.createClient(window.ClwData.getConfig().url, window.ClwData.getConfig().key));
-          if (client) {
-            const statusMap = {
-              'ricevuto': 'Inviato',
-              'approvato': 'Approvato',
-              'magazzino': 'In Preparazione',
-              'spedito': 'Spedito',
-              'fatturato': 'Fatturato',
-              'respinto': 'Respinto'
-            };
-            const supaPayload = {
-              updated_at: new Date().toISOString()
-            };
-            if (updateData.status) supaPayload.status = statusMap[updateData.status] || updateData.status;
-            if (updateData.ddtNumber !== undefined) supaPayload.ddt_number = updateData.ddtNumber;
-            if (updateData.ddtDate !== undefined) supaPayload.ddt_date = updateData.ddtDate;
-            if (updateData.carrier !== undefined) supaPayload.carrier = updateData.carrier;
-            if (updateData.trackingNumber !== undefined) supaPayload.tracking_number = updateData.trackingNumber;
-            if (updateData.shippingDate !== undefined) supaPayload.shipping_date = updateData.shippingDate;
-            if (updateData.notes !== undefined) supaPayload.notes = updateData.notes;
-
-            await client.from('documents').update(supaPayload).eq('number', orderId);
-            toast('Stato ordine e dati DDT salvati su Supabase!');
-
-            const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
-            if (ord) {
-              if (updateData.status) ord.workflow_status = updateData.status;
-              if (updateData.ddtNumber !== undefined) ord.ddt_number = updateData.ddtNumber;
-              if (updateData.ddtDate !== undefined) ord.ddt_date = updateData.ddtDate;
-              if (updateData.carrier !== undefined) ord.carrier = updateData.carrier;
-              if (updateData.trackingNumber !== undefined) ord.tracking_number = updateData.trackingNumber;
-              if (updateData.shippingDate !== undefined) ord.shipping_date = updateData.shippingDate;
-              if (updateData.notes !== undefined) ord.notes = updateData.notes;
-            }
-            updateStats();
-            renderOrders();
-            return;
-          }
-        }
-
         const res = await fetch('/api/orders/update-status', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -1496,7 +1413,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Errore aggiornamento');
 
-        toast('Stato ordine e dati DDT aggiornati!');
+        toast('Stato ordine e dati DDT aggiornati su Google Sheets!');
         // Update local object immediately
         const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
         if (ord) {
@@ -1846,7 +1763,7 @@
       }
     }
 
-    // Print DDT / Bolla di Consegna (Conforme D.P.R. 472/1996 - Modello Climawell)
+    // Print DDT / Bolla di Consegna (Conforme D.P.R. 472/1996 - Modello Pascal Cosmesi International)
     function openPrintDdt(orderId) {
       try {
         const ord = allOrders.find(o => o.id === orderId || o.number === orderId);
@@ -1876,14 +1793,14 @@
           <div>${clientCityZip}</div>
         `;
 
-        // Company info (Climawell)
-        const compName = companyProfile.displayName || companyProfile.companyName || 'Climawell';
-        const compAddr = companyProfile.address || 'Via delle Tre Pietre 2/C';
-        const compCapCity = `${companyProfile.postalCode || '50149'} ${companyProfile.city || companyProfile.province || 'Firenze'} (${companyProfile.province || 'FI'})`;
+        // Company info (Pascal Cosmesi International)
+        const compName = companyProfile.displayName || companyProfile.companyName || 'Pascal Cosmesi International';
+        const compAddr = companyProfile.address || 'Via F.lli Bandiera 24';
+        const compCapCity = `${companyProfile.postalCode || '50100'} ${companyProfile.city || 'Sovigliana'} (${companyProfile.province || 'FI'})`;
         const compTel = companyProfile.phone || '055/42.89.074';
-        const compVat = companyProfile.vatNumber || companyProfile.taxCode || '04732490489';
-        const compWeb = companyProfile.website || 'www.climawell.it';
-        const compEmail = companyProfile.email || 'info@climawell.it';
+        const compVat = companyProfile.vatNumber || '1234567890';
+        const compWeb = companyProfile.website || 'www.pascalmilano.it';
+        const compEmail = companyProfile.email || 'info@pascalmilano.it';
 
         // DDT metadata
         const ddtNum = ord.ddt_number || `DDT-${new Date().getFullYear()}-${(ord.number || '').slice(-4)}`;
@@ -1966,11 +1883,11 @@
           <div class="ddt-sheet">
             <!-- TOP HEADER SECTION -->
             <div class="ddt-header-section">
-              <!-- SENDER CLIMAWELL (LEFT) & CLIENT/DESTINATION (RIGHT) -->
+              <!-- SENDER PASCAL (LEFT) & CLIENT/DESTINATION (RIGHT) -->
               <div class="ddt-top-row">
                 <div class="ddt-sender-box">
-                  <div class="ddt-brand-logo">${escapeHtml(companyProfile.displayName || companyProfile.companyName || 'CLIMAWELL')}</div>
-                  <div class="ddt-brand-sub">SISTEMA GESTIONALE RETE VENDITE</div>
+                  <div class="ddt-brand-logo">PASCAL</div>
+                  <div class="ddt-brand-sub">COSMESI INTERNATIONAL</div>
                   <div class="ddt-sender-info">
                     <strong>${compName}</strong><br>
                     ${compAddr}<br>
@@ -2173,7 +2090,7 @@
               <!-- LEGAL AND PRIVACY FOOTER (COMPLIANT CON REG. UE 2016/679 GDPR & ART. 2220 C.C.) -->
               <div class="ddt-footer-legal">
                 In caso di nostra consegna il materiale verra' scaricato al numero civico. Non si accettano reclami per merce rotta o mancante se non al momento dello scarico annotati sul documento.<br>
-                <strong>Informativa Privacy (artt. 13-14 Reg. UE 2016/679 - GDPR):</strong> I dati personali sono trattati dal Titolare per adempimenti fiscali, amministrativi e di consegna contrattuale (art. 6, par. 1, lett. b-c GDPR), con conservazione per i termini di legge (10 anni ex art. 2220 c.c.). Per l'esercizio dei diritti (artt. 15-22 GDPR: accesso, rettifica, cancellazione) o informativa completa: <em>${escapeHtml(compEmail)}</em> o consultare la policy su /privacy.html.
+                <strong>Informativa Privacy (artt. 13-14 Reg. UE 2016/679 - GDPR):</strong> I dati personali sono trattati dal Titolare per adempimenti fiscali, amministrativi e di consegna contrattuale (art. 6, par. 1, lett. b-c GDPR), con conservazione per i termini di legge (10 anni ex art. 2220 c.c.). Per l'esercizio dei diritti (artt. 15-22 GDPR: accesso, rettifica, cancellazione) o informativa completa: <em>info@pascalmilano.it</em> o consultare la policy su /privacy.html.
               </div>
             </div>
           </div>

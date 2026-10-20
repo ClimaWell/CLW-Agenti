@@ -1,31 +1,31 @@
-// Offerte Agenti — Supabase Cloud & Plus 2000 Integration
+// Offerte Agenti — Dynamic Google Sheets & API Integration
 let AGENTS = [];
 let agentById = {};
 let hierarchy = {};
 let products = [], clients = [], dataMeta = {}, items = [], catalogLimit = 80;
 let companyProfile = {
-  companyName: 'Climawell',
-  displayName: 'Climawell',
-  vatNumber: '04732490489',
-  taxCode: '04732490489',
-  address: 'Via delle Tre Pietre 2/C',
-  postalCode: '50149',
-  city: 'Firenze',
-  province: 'FI',
+  companyName: '',
+  displayName: '',
+  vatNumber: '',
+  taxCode: '',
+  address: '',
+  postalCode: '',
+  city: '',
+  province: '',
   country: 'Italia',
-  email: 'info@climawell.it',
+  email: '',
   pec: '',
-  phone: '055-4289074',
-  website: 'www.climawell.it',
-  sdiCode: '0000000',
+  phone: '',
+  website: '',
+  sdiCode: '',
   iban: '',
   logoFileName: '',
-  footerText: '© Climawell — Sistema Gestionale Rete Vendite',
+  footerText: '',
   legalNotes: '',
   currency: 'EUR',
   defaultVat: 22,
   offerValidityDays: 30,
-  ordersEmail: 'info@climawell.it'
+  ordersEmail: ''
 };
 
 let documentType = new URLSearchParams(location.search).get('type') === 'order' ? 'order' : 'offer';
@@ -140,115 +140,9 @@ async function dbSet(key, value) {
   });
 }
 
+// Dynamic Loading from /api/company, /api/agents, /api/customers, /api/products
 async function loadData() {
-  // Step 0: Lettura immediata da cache locale per reattività istantanea dell'interfaccia
-  try {
-    const [cachedAg, cachedComp, cachedData] = await Promise.all([
-      dbGet('agents-data').catch(() => null),
-      dbGet('company-profile').catch(() => null),
-      dbGet('dataset').catch(() => null)
-    ]);
-    if (cachedAg && cachedAg.agents && cachedAg.agents.length) {
-      AGENTS = cachedAg.agents;
-      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-      hierarchy = cachedAg.hierarchy || hierarchy;
-      roleOptions();
-    }
-    if (cachedComp) {
-      companyProfile = { ...companyProfile, ...cachedComp };
-      renderCompanyProfile();
-    }
-    if (cachedData && cachedData.clients && cachedData.clients.length) {
-      clients = cachedData.clients;
-    }
-  } catch (_) {}
-
-  // Step 1: Priorità assoluta a Supabase (Database ufficiale Climawell & Plus 2000)
-  if (window.ClwData && window.ClwData.isConfigured()) {
-    try {
-      // Carica in parallelo Agenti, Clienti e Profilo Aziendale (veloci e leggeri)
-      const [supAg, supCust, supComp] = await Promise.all([
-        window.ClwData.getAgents(),
-        window.ClwData.getCustomers(),
-        window.ClwData.getCompany()
-      ]);
-
-      if (supAg && supAg.length > 0) {
-        AGENTS = supAg.map(a => ({
-          id: a.code,
-          code: a.code,
-          name: a.name,
-          role: a.role === 'admin' ? 'Amministrazione' : (a.role === 'capo_area' ? 'Capo area' : 'Agente'),
-          head: a.role === 'capo_area',
-          discountLimit: Number(a.discount_limit) || 60,
-          email: a.email || '',
-          phone: a.phone || ''
-        }));
-        agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-        hierarchy = {};
-        await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
-        try { localStorage.setItem('oa_cached_agents', JSON.stringify(AGENTS)); } catch (_) {}
-        roleOptions();
-      }
-
-      if (supCust && supCust.length > 0) {
-        clients = supCust.map(c => ({
-          id: c.code,
-          code: c.code,
-          name: c.name,
-          agent: c.agent_code,
-          agentId: c.agent_code,
-          address: c.address || '',
-          city: c.city || '',
-          province: c.province || '',
-          postalCode: c.postal_code || '',
-          phone: c.phone || c.mobile || '',
-          email: c.email || '',
-          vat: c.vat_number || '',
-          taxCode: c.tax_code || '',
-          sdi: c.sdi_code || '0000000',
-          payment: c.payment_method || 'Ri.Ba. 60 gg. f.m.',
-          iban: c.iban || ''
-        }));
-      }
-
-      if (supComp) {
-        companyProfile = {
-          ...companyProfile,
-          companyName: supComp.company_name || 'Climawell',
-          displayName: supComp.display_name || 'Climawell',
-          vatNumber: supComp.vat_number || '',
-          taxCode: supComp.tax_code || '',
-          address: supComp.address || '',
-          postalCode: supComp.postal_code || '',
-          city: supComp.city || '',
-          province: supComp.province || '',
-          country: supComp.country || 'Italia',
-          email: supComp.email || '',
-          phone: supComp.phone || '',
-          website: supComp.website || '',
-          sdiCode: supComp.sdi_code || '0000000',
-          footerText: supComp.footer_text || ''
-        };
-        await dbSet('company-profile', companyProfile).catch(() => {});
-        renderCompanyProfile();
-      }
-
-      dataMeta = {
-        generatedAt: new Date().toISOString(),
-        source: 'Supabase PostgreSQL (Plus 2000)',
-        articleCount: products.length,
-        clientCount: clients.length,
-        agentCount: AGENTS.length
-      };
-      await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-      return;
-    } catch (supErr) {
-      console.warn('[Supabase] Errore caricamento in offer-app, fallback su cache locale:', supErr);
-    }
-  }
-
-  // Step 2: Caricamento da cache locale IndexedDB (offline)
+  // Step 1: Load from local cache immediately for instantaneous startup
   const [cachedData, cachedComp, cachedAg] = await Promise.all([
     dbGet('dataset').catch(() => null),
     dbGet('company-profile').catch(() => null),
@@ -256,16 +150,110 @@ async function loadData() {
   ]);
 
   if (cachedData) {
-    if (!products.length) products = cachedData.articles || [];
-    if (!clients.length) clients = cachedData.clients || [];
-    dataMeta = cachedData.meta || {};
+    const isOldTestArticles = (cachedData.articles || []).length < 50;
+    if (!isOldTestArticles) {
+      products = cachedData.articles || [];
+      clients = cachedData.clients || [];
+      dataMeta = cachedData.meta || {};
+    }
   }
   if (cachedComp) companyProfile = { ...companyProfile, ...cachedComp };
-  if (cachedAg && !AGENTS.length) {
-    // Rispetta i filtri agenti attivi anche da cache
-    AGENTS = (cachedAg.agents || []).filter(a => a.attivo !== false && a.active !== false);
-    agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-    hierarchy = cachedAg.hierarchy || hierarchy;
+  if (cachedAg) {
+    const hasOldTestAgent = (cachedAg.agents || []).some(a => a.name && (a.name.includes('Micozzi') || a.name.includes('Pontrelli')));
+    if (!hasOldTestAgent) {
+      AGENTS = cachedAg.agents || [];
+      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+      hierarchy = cachedAg.hierarchy || hierarchy;
+    }
+  }
+
+  // Step 2: If online, fetch live data from server endpoints
+  // Pass spreadsheet IDs directly as query params (Netlify Functions are stateless!)
+  if (navigator.onLine) {
+    try {
+      if (window.companyConfigPromise) {
+        try { await window.companyConfigPromise; } catch {}
+      }
+      const def = window.OFFICIAL_SYSTEM_SPREADSHEETS || {
+        company: { spreadsheetId: "1-ntNPKA3gdjZaxYntGNkXtKC5Kt4JIXGSoQfESO169M", tab: "Dati azienda" },
+        agents: { spreadsheetId: "13HaTubf4_xVTtzkQUcYINkRtuSzLR2qGzJAiA-oAecU", tab: "Agenti" },
+        customers: { spreadsheetId: "1rkFDBTCJD3JlrcvyOPGHjYTJDkjuMc24dJ7l6EqQ6I8", tab: "clienti" },
+        products: { spreadsheetId: "17ErnowHZDqA3WDTN5auHkyTBPVn4MqkI8BFkiqkDhmE", tab: "q_listino_prezzi_catalogo" },
+        repository: { spreadsheetId: "1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc", tabOffers: "Offerte", tabOrders: "Ordini" }
+      };
+      const cfg = window.companyConfig || def;
+      const getValidId = (id, fallback) => (!id || typeof id !== 'string' || id.length < 20 || id.includes('1mnW') || id.includes('1N6ZcGa')) ? fallback : id.trim();
+
+      const compId = getValidId(cfg.company?.spreadsheetId, def.company.spreadsheetId);
+      const agId = getValidId(cfg.agents?.spreadsheetId, def.agents.spreadsheetId);
+      const custId = getValidId(cfg.customers?.spreadsheetId, def.customers.spreadsheetId);
+      const prodId = getValidId(cfg.products?.spreadsheetId, def.products.spreadsheetId);
+
+      const qs = (id, tab) => {
+        const params = new URLSearchParams();
+        if (id) params.set('id', id);
+        if (tab) params.set('tab', tab);
+        const str = params.toString();
+        return str ? '?' + str : '';
+      };
+
+      const token = localStorage.getItem('oa_session_token');
+      const authHeaders = {
+        accept: 'application/json',
+        ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+      };
+
+      const [compRes, agRes, custRes, prodRes] = await Promise.all([
+        fetch(`/api/company${qs(compId, cfg.company?.tab || def.company.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
+        fetch(`/api/agents${qs(agId, cfg.agents?.tab || def.agents.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
+        fetch(`/api/customers${qs(custId, cfg.customers?.tab || def.customers.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' }),
+        fetch(`/api/products${qs(prodId, cfg.products?.tab || def.products.tab)}`, { headers: authHeaders, credentials: 'same-origin', cache: 'no-store' })
+      ]);
+
+      if (compRes.ok) {
+        const d = await compRes.json();
+        if (d.company && Object.keys(d.company).length > 0) {
+          companyProfile = { ...companyProfile, ...d.company };
+          await dbSet('company-profile', companyProfile).catch(() => {});
+        }
+      }
+
+      if (agRes.ok) {
+        const d = await agRes.json();
+        if (d.ok !== false && d.agents && d.agents.length > 0) {
+          AGENTS = d.agents;
+          agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+          hierarchy = d.hierarchy || hierarchy;
+          await dbSet('agents-data', { agents: AGENTS, hierarchy }).catch(() => {});
+        }
+      }
+
+      if (custRes.ok) {
+        const d = await custRes.json();
+        if (d.ok !== false && d.customers && d.customers.length > 0) {
+          clients = d.customers;
+        }
+      }
+
+      if (prodRes.ok) {
+        const d = await prodRes.json();
+        if (d.ok !== false && d.products && d.products.length > 0) {
+          products = d.products;
+        }
+      }
+
+      dataMeta = {
+        generatedAt: new Date().toISOString(),
+        source: 'Google Sheets Live API',
+        articleCount: products.length,
+        clientCount: clients.length,
+        agentCount: AGENTS.length
+      };
+
+      await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
+    } catch (err) {
+      console.warn('Connessione API non riuscita, uso la cache locale:', err);
+    }
   }
 
   // Step 3: Fallback to seed-data if cache was completely empty
@@ -309,9 +297,9 @@ function companyContactLine() {
 }
 
 function renderCompanyProfile() {
-  $('companyName').textContent = companyProfile.companyName || companyProfile.displayName || 'Climawell';
-  $('companyAddress').textContent = companyAddressLine() || 'Via delle Tre Pietre 2/C - 50149 Firenze (FI)';
-  $('companyContacts').textContent = companyContactLine() || 'Tel. 055-4289074 · P. IVA 04732490489 · info@climawell.it';
+  $('companyName').textContent = companyProfile.companyName || companyProfile.displayName || 'Azienda';
+  $('companyAddress').textContent = companyAddressLine() || 'Indirizzo aziendale da completare nel foglio';
+  $('companyContacts').textContent = companyContactLine();
   const validity = `${Number(companyProfile.offerValidityDays) || 30} giorni`;
   if ([...$('validity').options].some(o => o.value === validity)) $('validity').value = validity;
 }
@@ -409,10 +397,7 @@ function roleOptions() {
   heads.forEach(h => {
     html += `<option value="AREA_${h.id}">Capo area · ${esc(h.name)}</option>`;
   });
-  html += AGENTS.map(a => {
-    const label = a.id.startsWith('AG') ? a.id.replace('AG', 'Agente ') : `Agente ${a.id}`;
-    return `<option value="${a.id}">${label} · ${esc(a.name)}</option>`;
-  }).join('');
+  html += AGENTS.map(a => `<option value="${a.id}">${a.id.replace('AG', 'Agente ')} · ${esc(a.name)}</option>`).join('');
 
   $('roleSelect').innerHTML = html;
   $('roleSelect').style.display = '';
@@ -432,10 +417,7 @@ function roleOptions() {
 
   if ($('assignedAgent')) {
     $('assignedAgent').disabled = false;
-    $('assignedAgent').innerHTML = AGENTS.map(a => {
-      const label = a.id.startsWith('AG') ? a.id.replace('AG', 'Agente ') : `Agente ${a.id}`;
-      return `<option value="${a.id}">${label} · ${esc(a.name)}</option>`;
-    }).join('');
+    $('assignedAgent').innerHTML = AGENTS.map(a => `<option value="${a.id}">${a.id.replace('AG', 'Agente ')} · ${esc(a.name)}</option>`).join('');
   }
 }
 
@@ -557,90 +539,18 @@ function renderCatalog() {
   });
 }
 
-let remoteProductSearchTimer = null;
-
-function renderProductButtons(list) {
-  $('productResults').innerHTML = list.map(p => `<button class="product-result" data-code="${esc(p.code)}"><span><strong>${esc(p.description)}</strong><small>${esc(p.code)} · ${esc([p.brand, p.macroFamily, p.family].filter(Boolean).join(' · '))} · disp. ${num.format(p.stock)}</small></span><span class="result-price">${euro.format(p.price)}</span></button>`).join('') || '<div class="empty-state">Nessun articolo trovato</div>';
-  $('productResults').classList.remove('hidden');
-  document.querySelectorAll('.product-result').forEach(b => b.onclick = () => addProduct(b.dataset.code));
-}
-
-function sortProductResults(list, q) {
-  return list.sort((a, b) => {
-    const aCode = normalized(a.code);
-    const bCode = normalized(b.code);
-    if (aCode === q && bCode !== q) return -1;
-    if (bCode === q && aCode !== q) return 1;
-    if (aCode.startsWith(q) && !bCode.startsWith(q)) return -1;
-    if (bCode.startsWith(q) && !aCode.startsWith(q)) return 1;
-    return (Number(b.stock) || 0) - (Number(a.stock) || 0);
-  });
-}
-
 function renderProducts(query = '') {
   const q = normalized(query);
-  const rawFound = q ? products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)) : products;
-  const found = sortProductResults(rawFound, q).slice(0, 60);
-  renderProductButtons(found);
-
-  // Ricerca in tempo reale su Supabase per articoli oltre il blocco iniziale (es. MS230)
-  if (q && q.length >= 2 && window.ClwData && window.ClwData.isConfigured()) {
-    clearTimeout(remoteProductSearchTimer);
-    remoteProductSearchTimer = setTimeout(async () => {
-      try {
-        const remote = await window.ClwData.getProducts({ search: query.trim(), limit: 30 });
-        if (remote && remote.length) {
-          let added = false;
-          for (const rp of remote) {
-            const formatted = {
-              id: rp.code,
-              code: rp.code,
-              description: rp.description,
-              brand: rp.brand || '',
-              sector: rp.sector || '',
-              macroFamily: rp.macro_family || '',
-              family: rp.family || '',
-              group: [rp.brand, rp.sector, rp.macro_family, rp.family].filter(Boolean).join(' · '),
-              price: Number(rp.price) || 0,
-              um: rp.um || 'PZ',
-              stock: Number(rp.stock_qty) || 0,
-              location: rp.primary_location || '',
-              barcode: rp.barcode || '',
-              vat: Number(rp.vat) || 22,
-              maxDiscount: Number(rp.max_discount) || 60,
-              imageUrl: rp.image_url || '',
-              imageRef: rp.image_ref || '',
-              image: rp.image_url || ''
-            };
-            const existingIdx = products.findIndex(p => p.code === rp.code);
-            if (existingIdx >= 0) {
-              products[existingIdx] = formatted;
-            } else {
-              products.push(formatted);
-              added = true;
-            }
-          }
-          const updated = products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)).slice(0, 60);
-          if (updated.length) renderProductButtons(updated);
-        }
-      } catch (e) {
-        console.warn('Errore ricerca remota:', e);
-      }
-    }, 200);
-  }
+  const found = (q ? products.filter(p => normalized([p.code, p.description, p.brand, p.group, p.sector, p.macroFamily, p.family].join(' ')).includes(q)) : products).slice(0, 60);
+  $('productResults').innerHTML = found.map(p => `<button class="product-result" data-code="${esc(p.code)}"><span><strong>${esc(p.description)}</strong><small>${esc(p.code)} · ${esc([p.brand, p.macroFamily, p.family].filter(Boolean).join(' · '))} · disp. ${num.format(p.stock)}</small></span><span class="result-price">${euro.format(p.price)}</span></button>`).join('') || '<div class="empty-state">Nessun articolo trovato</div>';
+  $('productResults').classList.remove('hidden');
+  document.querySelectorAll('.product-result').forEach(b => b.onclick = () => addProduct(b.dataset.code));
 }
 
 function addProduct(code) {
   const product = products.find(p => p.code === code);
   if (!product) return;
-  const existingIdx = items.findIndex(i => i.product?.code === code);
-  if (existingIdx >= 0) {
-    items[existingIdx].qty += 1;
-    const it = items.splice(existingIdx, 1)[0];
-    items.unshift(it); // Porta l'articolo ri-selezionato in cima alla lista
-  } else {
-    items.unshift({ id: crypto.randomUUID(), product, qty: 1, discounts: [0, 0, 0, 0], markup: 0 }); // Inserisce in cima
-  }
+  items.push({ id: crypto.randomUUID(), product, qty: 1, discounts: [0, 0, 0, 0], markup: 0 });
   $('productSearch').value = '';
   $('productResults').classList.add('hidden');
   renderOffer();
@@ -719,84 +629,44 @@ function persistOffer() {
 
 let editingOriginOffer = '';
 
-async function restoreOffer() {
+function restoreOffer() {
   try {
-    const params = new URLSearchParams(location.search);
-    const targetDoc = params.get('revision') || params.get('edit') || editingOriginOffer;
-
-    const d = JSON.parse(localStorage.getItem('offer-demo') || 'null');
-    if (d && d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
-    if (d && Array.isArray(d.items) && d.items.length > 0) {
-      items = d.items.map(i => {
-        const existingProd = products.find(p => p.code === i.product?.code);
-        return {
-          product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
-          qty: Number(i.qty) || 1,
-          discounts: i.discounts || [0, 0, 0, 0],
-          markup: Number(i.markup) || 0
-        };
-      });
-    }
-
-    // Se items è ancora vuoto e abbiamo un numero documento target, carichiamo le righe da Supabase!
-    if (items.length === 0 && targetDoc && window.ClwData && typeof window.ClwData.getDocumentLines === 'function') {
-      try {
-        const supLines = await window.ClwData.getDocumentLines(targetDoc);
-        if (supLines && supLines.length > 0) {
-          items = supLines.map(l => {
-            const existingProd = products.find(p => p.code === l.product_code);
-            return {
-              product: existingProd || {
-                code: l.product_code,
-                description: l.description,
-                price: Number(l.list_price) || 0,
-                vat: Number(l.vat) || 22,
-                brand: l.brand || '',
-                location: l.location || '',
-                stock: 99
-              },
-              qty: Number(l.quantity) || 1,
-              discounts: [
-                Number(l.discount_1) || 0,
-                Number(l.discount_2) || 0,
-                Number(l.discount_3) || 0,
-                Number(l.discount_4) || 0
-              ],
-              markup: 0
-            };
-          });
-        }
-      } catch (err) {
-        console.warn('[Supabase] Errore recupero righe in restoreOffer:', err);
-      }
-    }
-
-    if (d) {
-      if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
-      $('notes').value = d.notes || '';
-      $('validity').value = d.validity || '30 giorni';
-      if (d.payment) {
-        const paySelect = $('payment');
-        const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
-        if (existingOpt) {
-          paySelect.value = existingOpt.value;
-          $('customPaymentInput')?.classList.add('hidden');
-        } else {
-          paySelect.value = '__custom__';
-          if ($('customPaymentInput')) {
-            $('customPaymentInput').value = d.payment;
-            $('customPaymentInput').classList.remove('hidden');
-          }
+    const d = JSON.parse(localStorage.getItem('offer-demo'));
+    if (!d) return;
+    if (d.originOfferNumber) editingOriginOffer = d.originOfferNumber;
+    items = (d.items || []).map(i => {
+      const existingProd = products.find(p => p.code === i.product?.code);
+      return {
+        product: existingProd || i.product || { code: 'N/A', description: 'Articolo', price: 0, vat: 22 },
+        qty: Number(i.qty) || 1,
+        discounts: i.discounts || [0, 0, 0, 0],
+        markup: Number(i.markup) || 0
+      };
+    });
+    if (d.role && [...$('roleSelect').options].some(o => o.value === d.role)) $('roleSelect').value = d.role;
+    $('notes').value = d.notes || '';
+    $('validity').value = d.validity || '30 giorni';
+    if (d.payment) {
+      const paySelect = $('payment');
+      const existingOpt = [...paySelect.options].find(o => o.value.toLowerCase() === d.payment.toLowerCase() || o.text.toLowerCase() === d.payment.toLowerCase());
+      if (existingOpt) {
+        paySelect.value = existingOpt.value;
+        $('customPaymentInput')?.classList.add('hidden');
+      } else {
+        paySelect.value = '__custom__';
+        if ($('customPaymentInput')) {
+          $('customPaymentInput').value = d.payment;
+          $('customPaymentInput').classList.remove('hidden');
         }
       }
-      if (d.shipping) $('shipping').value = d.shipping;
-      let targetClient = d.customer;
-      if (d.customerName) {
-        const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
-        if (match) targetClient = match.id;
-      }
-      renderCustomers(targetClient || '');
     }
+    if (d.shipping) $('shipping').value = d.shipping;
+    let targetClient = d.customer;
+    if (d.customerName) {
+      const match = visibleClients().find(c => (c.name && c.name.toLowerCase() === d.customerName.toLowerCase()) || String(c.id) === String(d.customer));
+      if (match) targetClient = match.id;
+    }
+    renderCustomers(targetClient || '');
   } catch (err) {
     console.warn('Errore restoreOffer:', err);
   }
@@ -846,8 +716,8 @@ function offerNumber() {
 }
 
 function buildPrintOffer() {
-  const compEmail = companyProfile.email || 'info@climawell.it';
-  const gdprClause = `Informativa Privacy (Reg. UE 2016/679): I dati personali sono trattati per finalità contrattuali e precontrattuali ex art. 6(1)(b) GDPR. Per diritti (artt. 15-22 GDPR) consultare /privacy.html o scrivere a ${compEmail}.`;
+  const c = customerData(), t = totals(), agent = currentAgent(), label = documentType === 'order' ? 'ORDINE CLIENTE' : 'OFFERTA CLIENTE';
+  const gdprClause = `Informativa Privacy (Reg. UE 2016/679): I dati personali sono trattati per finalità contrattuali e precontrattuali ex art. 6(1)(b) GDPR. Per diritti (artt. 15-22 GDPR) consultare /privacy.html o scrivere a info@pascalmilano.it.`;
   const baseLegal = esc(companyProfile.footerText || companyProfile.legalNotes || `I prezzi sono riservati al cliente intestatario e validi per il periodo indicato. L'${documentType === 'order' ? 'ordine' : 'offerta'} non costituisce conferma definitiva.`);
   $('printOffer').innerHTML = `<div class="print-sheet"><div class="print-parties"><div class="print-party"><label>AGENTE / AZIENDA</label><strong>${esc(companyProfile.companyName || companyProfile.displayName)}</strong><br>${esc(companyAddressLine())}<br>${esc(companyContactLine())}<br>${esc(agent.name)}</div><div class="print-party"><label>SPETT.LE CLIENTE</label><strong>${esc(c.name || 'Cliente da selezionare')}</strong><br>${esc([c.address, c.postalCode, c.city, c.province].filter(Boolean).join(' · '))}<br>${esc([c.phone, c.email].filter(Boolean).join(' · '))}</div></div><div class="print-title-row"><h1>${label}</h1><strong>${offerNumber()}</strong></div><table class="print-commerce"><tr><td><span>Data</span>${new Date().toLocaleDateString('it-IT')}</td><td><span>Pagamento</span>${esc(currentPaymentValue())}</td><td><span>Spedizione</span>${esc($('shipping').value)}</td><td><span>Validità</span>${esc($('validity').value)}</td></tr></table><table class="print-lines"><thead><tr><th class="code">Codice</th><th class="desc">Descrizione</th><th class="qty num">Q.tà</th><th class="price num">Listino</th><th class="discounts">Sconti / ricarico</th><th class="total num">Totale</th><th class="vat num">IVA</th></tr></thead><tbody>${items.map(i => `<tr><td>${esc(i.product.code)}</td><td>${esc(i.product.description)}</td><td class="num">${num.format(i.qty)}</td><td class="num">${num.format(i.product.price)}</td><td>${esc(discountLabel(i))}</td><td class="num"><strong>${num.format(lineNet(i))}</strong></td><td class="num">${i.product.vat || 22}%</td></tr>`).join('')}</tbody></table><div class="print-bottom"><div class="print-notes-dense"><strong>NOTE E CONDIZIONI</strong><p>${esc($('notes').value || companyProfile.legalNotes || 'Prezzi IVA esclusa salvo diversa indicazione. Disponibilità e tempi di consegna da confermare.')}</p></div><div class="print-totals-dense"><div><span>Imponibile</span><strong>${euro.format(t.net)}</strong></div><div><span>IVA</span><strong>${euro.format(t.vat)}</strong></div><div><span>TOTALE ${documentType === 'order' ? 'ORDINE' : 'OFFERTA'}</span><strong>${euro.format(t.grand)}</strong></div></div></div><div class="print-legal-dense">${baseLegal}<br><span style="font-size:0.75rem; color:#666;">${gdprClause}</span></div></div>`;
 }
@@ -900,9 +770,7 @@ function submissionPayload() {
       revisionOf: editingOriginOffer || undefined,
       lines: items.map(i => ({
         code: i.product.code,
-        caId: i.product.id || '',
         description: i.product.description,
-        um: i.product.um || 'PZ',
         quantity: i.qty,
         listPrice: i.product.price,
         discounts: i.discounts,
@@ -928,11 +796,25 @@ async function readApiResponse(response) {
 }
 
 async function sendSubmission(payload) {
-  // Con Supabase attivo, la registrazione primaria e ufficiale avviene tramite window.ClwData.createDocument
-  if (window.ClwData && window.ClwData.isConfigured()) {
-    return { ok: true, source: 'Supabase' };
-  }
-  return { ok: true, local: true };
+  const number = payload.orderNumber || payload.offerNumber;
+  const type = payload.documentType || (payload.orderNumber ? 'order' : 'offer');
+  localStorage.setItem(`submission-${number}`, payload.id);
+  const hdrs = { 'content-type': 'application/json', 'accept': 'application/json' };
+  const token = localStorage.getItem('oa_session_token');
+  if (token) hdrs['Authorization'] = 'Bearer ' + token;
+  const user = currentUser || JSON.parse(localStorage.getItem('oa_session_user') || 'null');
+  if (user) hdrs['x-oa-user'] = encodeURIComponent(JSON.stringify(user));
+
+  const response = await fetch(type === 'order' ? '/api/orders' : '/api/offers', {
+    method: 'POST',
+    headers: hdrs,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    body: JSON.stringify(payload)
+  });
+  const data = await readApiResponse(response);
+  if (!response.ok) throw new Error(data.error || 'Invio a Google Sheets non riuscito');
+  return data;
 }
 
 async function submitOffer() {
@@ -948,50 +830,26 @@ async function submitOffer() {
   }
   const payload = submissionPayload();
   $('submitBtn').disabled = true;
-  $('submitBtn').textContent = 'Registrazione su Supabase…';
-
-  // 1. Inserimento prioritario su Supabase (PostgreSQL Cloud Climawell)
-  if (window.ClwData && window.ClwData.isConfigured()) {
-    try {
-      await window.ClwData.createDocument({
-        documentType: documentType === 'order' ? 'OCL' : 'OFC',
-        number: offerNumber(),
-        customer: c,
-        agent: currentAgent(),
-        lines: items,
-        totals: totals(),
-        paymentMethod: currentPaymentValue(),
-        validityDays: parseInt($('validity').value, 10) || 30,
-        notes: $('notes').value
-      });
-      toast(`✅ ${documentType === 'order' ? 'Ordine' : 'Offerta'} ${offerNumber()} registrato su Supabase!`);
-    } catch (supErr) {
-      console.warn('[Supabase] Errore inserimento documento:', supErr);
-    }
-  }
-
-  // Pulisce il numero di bozza salvato per l'agente e la bozza corrente così il prossimo documento ha numero univoco
-  try {
-    const storageKey = documentType === 'order' ? 'order-numbers' : 'offer-numbers';
-    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-    delete saved[currentAgentId()];
-    localStorage.setItem(storageKey, JSON.stringify(saved));
-    localStorage.removeItem('offer-demo');
-    localStorage.removeItem('offer-editing-info');
-  } catch (cleanErr) {
-    console.warn('Errore pulizia bozza locale:', cleanErr);
-  }
+  $('submitBtn').textContent = 'Registrazione su Google Sheets…';
 
   if (!navigator.onLine) {
     const outbox = JSON.parse(localStorage.getItem('offer-outbox') || '[]');
     if (!outbox.some(o => o.id === payload.id)) outbox.push({ ...payload, documentType });
     localStorage.setItem('offer-outbox', JSON.stringify(outbox));
-    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} registrato in locale`);
-    setTimeout(() => location.href = '/', 900);
+    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} in coda: sarà registrato sul foglio appena torna la linea`);
+    $('submitBtn').textContent = 'In coda offline';
     return;
   }
 
-  setTimeout(() => location.href = '/', 800);
+  try {
+    await sendSubmission(payload);
+    toast(`${documentType === 'order' ? 'Ordine' : 'Offerta'} registrato con successo nel foglio Google`);
+    setTimeout(() => location.href = '/', 900);
+  } catch (error) {
+    toast(error.message || 'Invio non riuscito');
+    $('submitBtn').disabled = false;
+    $('submitBtn').textContent = 'Invia in azienda';
+  }
 }
 
 async function flushOutbox() {
@@ -1000,27 +858,13 @@ async function flushOutbox() {
   const pending = [];
   for (const payload of outbox) {
     try {
-      if (window.ClwData && window.ClwData.isConfigured()) {
-        const c = { id: payload.customerCode || payload.customerId, name: payload.customerName };
-        const ag = { id: payload.agentCode, name: payload.agentName };
-        await window.ClwData.createDocument({
-          documentType: payload.documentType === 'order' ? 'OCL' : 'OFC',
-          number: payload.number || payload.id,
-          customer: c,
-          agent: ag,
-          lines: payload.items || [],
-          totals: payload.totals || {},
-          paymentMethod: payload.payment || '',
-          validityDays: payload.validityDays || 30,
-          notes: payload.notes || ''
-        });
-      }
+      await sendSubmission(payload);
     } catch {
       pending.push(payload);
     }
   }
   localStorage.setItem('offer-outbox', JSON.stringify(pending));
-  if (!pending.length) toast('Pratiche in coda sincronizzate con Supabase');
+  if (!pending.length) toast('Pratiche in coda registrate sul foglio Google');
 }
 
 function parseCsv(text) {
@@ -1057,19 +901,17 @@ const pick = (row, ...keys) => {
 function normalizeArticles(rows) {
   return rows.map((r, index) => ({
     id: pick(r, 'CaId') || String(index + 1),
-    code: pick(r, 'CodiceArticolo', 'Ca', 'Codice') || pick(r, 'CaId'),
-    description: pick(r, 'Descrizione', 'DesArt') || pick(r, 'Q_UBI_ART_DesTab'),
-    sector: pick(r, 'Settore', 'JSettore'),
-    macroFamily: pick(r, 'Macrofamiglia', 'JMacroFamiglia', 'Macro famiglia'),
-    family: pick(r, 'Famiglia', 'JFamiglia'),
+    code: pick(r, 'Ca', 'Codice') || pick(r, 'CaId'),
+    description: pick(r, 'DesArt', 'Descrizione') || pick(r, 'Q_UBI_ART_DesTab'),
+    sector: pick(r, 'JSettore', 'Settore'),
+    macroFamily: pick(r, 'JMacroFamiglia', 'Macro famiglia'),
+    family: pick(r, 'JFamiglia', 'Famiglia'),
     brand: pick(r, 'Marca') || pick(r, 'Q_MARCHE_DesTab'),
-    group: pick(r, 'Ubicazione', 'JUbiArt', 'Q_UBI_ART_DesTab'),
-    price: toNumber(pick(r, 'Prezzo', 'QT_prezzo_Pz', 'Listino')),
-    stock: toNumber(pick(r, 'Giacenza (QtEsi)', 'QtEsi', 'Giacenza', 'Disponibilita')),
-    imageRef: pick(r, 'URL-immagine', 'URL-immagine ', 'Disegno'),
+    group: pick(r, 'Q_UBI_ART_DesTab'),
+    price: toNumber(pick(r, 'QT_prezzo_Pz', 'Prezzo', 'Listino')),
+    stock: toNumber(pick(r, 'QtEsi', 'Disponibilita')),
+    imageRef: pick(r, 'Disegno'),
     discountCode: pick(r, 'JScontoVen'),
-    unit: pick(r, 'Unita di Misura', 'Unità di Misura', 'Um') || 'NR',
-    status: pick(r, 'Jstato prodotto', 'JStato'),
     maxDiscount: Math.min(100, Math.max(0, toNumber(pick(r, 'ScReale', 'Sconto massimo')) || 100)),
     vat: toNumber(pick(r, 'IVA')) || 22
   })).filter(p => p.code && p.description);
@@ -1095,12 +937,7 @@ function normalizeClients(rows) {
       province: pick(r, 'Pv', 'Provincia'),
       phone: pick(r, 'Telefono'),
       mobile: pick(r, 'Cellulare'),
-      email: pick(r, 'E-mail', 'Email'),
-      pec: pick(r, 'PEC', 'Pec'),
-      payment: pick(r, 'Pagamento', 'CondizionePagamento'),
-      priceList: pick(r, 'Listino', 'CodiceListino'),
-      vatNumber: pick(r, 'PartitaIva', 'PIva'),
-      fiscalCode: pick(r, 'CodiceFiscale', 'CodFisc')
+      email: pick(r, 'E-mail', 'Email')
     };
   }).filter(c => c.id && c.name);
 }
@@ -1258,12 +1095,14 @@ function bindEvents() {
     const btn = $('confirmCustomer');
     const prevText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Salvataggio su Supabase…';
+    btn.textContent = 'Salvataggio su Google Sheets…';
 
     let savedCustomer = null;
     try {
-      if (window.ClwData && window.ClwData.isConfigured()) {
-        savedCustomer = await window.ClwData.saveCustomer({
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
           name,
           city,
           address,
@@ -1276,13 +1115,13 @@ function bindEvents() {
           iban,
           bank,
           agentId
-        });
-      }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Errore salvataggio cliente');
+      savedCustomer = data.customer;
     } catch (err) {
       console.warn('Errore salvataggio remoto cliente, uso fallback locale:', err);
-    }
-
-    if (!savedCustomer) {
       savedCustomer = {
         id: `LOCAL-${Date.now()}`,
         code: `LOCAL-${Date.now()}`,
@@ -1305,7 +1144,7 @@ function bindEvents() {
         activity: 'Cliente',
         activityCode: ''
       };
-      toast('Cliente salvato in locale');
+      toast('Cliente salvato in locale (Google Sheets non raggiungibile)');
     } finally {
       btn.disabled = false;
       btn.textContent = prevText;
@@ -1322,7 +1161,7 @@ function bindEvents() {
       $('customerDialog').close();
       $('customerForm').reset();
       await dbSet('dataset', { meta: dataMeta, articles: products, clients }).catch(() => {});
-      toast(`Cliente "${savedCustomer.name}" salvato su Supabase e assegnato`);
+      toast(`Cliente "${savedCustomer.name}" salvato su Google Sheets e assegnato`);
     }
   };
   $('dataBtn').onclick = async () => {
@@ -1330,7 +1169,7 @@ function bindEvents() {
     renderCompanyProfile();
     renderDataDialog();
     $('dataDialog').showModal();
-    toast('Dati sincronizzati con Supabase');
+    toast('Dati sincronizzati con Google Sheets');
   };
   $('applyImport').onclick = applyImports;
 }
@@ -1346,7 +1185,7 @@ async function start() {
     const isRev = !params.get('edit');
     $('documentTitle').textContent = isRev ? 'REVISIONE OFFERTA' : 'MODIFICA OFFERTA';
     $('grandLabel').textContent = 'TOTALE OFFERTA';
-    $('submitBtn').textContent = isRev ? 'Registra revisione su Supabase' : 'Aggiorna offerta su Supabase';
+    $('submitBtn').textContent = isRev ? 'Registra revisione su Google Sheets' : 'Aggiorna offerta su Google Sheets';
     document.title = isRev ? `Revisione ${revParam}` : `Modifica ${revParam}`;
 
     // Calcola il nuovo numero di revisione progressivo
@@ -1375,26 +1214,14 @@ async function start() {
   }
 
   bindEvents();
-
-  // Popolamento sincrono immediato da cache locale per non lasciare MAI la tendina agenti o il profilo aziendale vuoti
-  try {
-    const cachedAg = JSON.parse(localStorage.getItem('oa_cached_agents') || 'null');
-    if (cachedAg && Array.isArray(cachedAg) && cachedAg.length) {
-      AGENTS = cachedAg;
-      agentById = Object.fromEntries(AGENTS.map(a => [a.id, a]));
-    }
-  } catch (_) {}
-  try { roleOptions(); } catch (_) {}
-  try { renderCompanyProfile(); } catch (_) {}
-
-  $('syncLabel').textContent = 'Connessione a Supabase Live…';
+  $('syncLabel').textContent = 'Connessione a Google Sheets…';
 
   try {
     await checkUserSession();
     await loadData();
     roleOptions();
     updateFilters();
-    await restoreOffer();
+    restoreOffer();
     if (params.get('client')) {
       const qClient = decodeURIComponent(params.get('client')).trim().toLowerCase();
       const match = visibleClients().find(c => (c.name || '').toLowerCase().includes(qClient));
@@ -1419,18 +1246,16 @@ async function start() {
           container.parentNode.insertBefore(banner, container.nextSibling);
         }
       }
-      const mPlus = revParam.match(/-BANCO-(\d+)/i);
-      const plusNote = mPlus ? ` <span style="background:#dbeafe; color:#0369a1; padding:2px 8px; border-radius:4px; font-weight:750; font-size:.78rem; margin-left:6px; border:1px solid #bfdbfe;">📋 Plus: OFC ${mPlus[1]}/2026</span>` : '';
       banner.innerHTML = `
         <div>
-          <strong>✏️ Revisione Offerta:</strong> Stai lavorando sui dati dell'offerta originale <code>${esc(revParam)}</code>${plusNote}.
+          <strong>✏️ Revisione Offerta:</strong> Stai lavorando sui dati dell'offerta originale <code>${esc(revParam)}</code>.
           <div style="font-size:.78rem; color:#2563eb; margin-top:2px;">Tutti gli articoli sono stati ricaricati. Puoi aggiungerne altri dal catalogo, variare quantità o prezzi, e ristampare o confermare.</div>
         </div>
         <a href="/index.html" class="btn secondary" style="padding:4px 10px; font-size:.78rem; text-decoration:none;">Torna al Registro</a>
       `;
     }
 
-    $('syncLabel').textContent = navigator.onLine ? '🟢 Supabase Live' : 'Modalità offline';
+    $('syncLabel').textContent = navigator.onLine ? '🟢 Google Sheets collegato' : 'Modalità offline';
     $('offerCode').textContent = offerNumber();
   } catch (error) {
     console.error(error);
@@ -1445,7 +1270,7 @@ window.addEventListener('offline', () => {
   toast('Sei offline: dati e bozze restano disponibili');
 });
 window.addEventListener('online', () => {
-  $('syncLabel').textContent = '🟢 Supabase Live';
+  $('syncLabel').textContent = '🟢 Google Sheets collegato';
   toast('Connessione ripristinata');
   flushOutbox();
 });

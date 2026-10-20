@@ -917,7 +917,7 @@ async function runDiagnostics(testCfg = {}) {
       status: 'warning',
       icon: '🟡',
       label: 'Copia locale attiva',
-      message: 'Uso dati locali di fallback (Climawell)',
+      message: 'Uso dati locali di fallback (Pascal Milano 2)',
       details: 'Connessione Google Sheets API non attiva'
     };
   }
@@ -2217,7 +2217,7 @@ async function setupWarehouseSpreadsheet(whId) {
       const nowStr = new Date().toLocaleDateString('it-IT') + ' ' + new Date().toLocaleTimeString('it-IT');
       const infoRows = [
         ['🏭 REGISTRO UFFICIALE MAGAZZINO, LOGISTICA E PRODUZIONE', '', ''],
-        ['Azienda:', 'Climawell', ''],
+        ['Azienda:', 'Pascal Cosmesi International', ''],
         ['Stato Sistema:', '🟢 Connesso e Sincronizzato in tempo reale con OrderSender', ''],
         ['Spreadsheet ID:', whId, ''],
         ['Data Inizializzazione:', nowStr, ''],

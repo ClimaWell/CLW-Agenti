@@ -431,9 +431,6 @@ async function fetchProductsData(customId, customTab) {
       const macroIdx = col('jmacrofamiglia');
       const famIdx = col('jfamiglia');
       const groupIdx = col('q_ubi_art_destab');
-      const ubiIdx = colExact('ubi') >= 0 ? colExact('ubi') : col('ubicazione');
-      const eanIdx = colExact('ean') >= 0 ? colExact('ean') : (col('barcode') >= 0 ? col('barcode') : col('codiceabarre'));
-      const umIdx = colExact('um') >= 0 ? colExact('um') : col('misura');
       const priceIdx = col('qt_prezzo_pz') >= 0 ? col('qt_prezzo_pz') : col('prezzo');
       const stockIdx = colExact('qtesi') >= 0 ? colExact('qtesi') : col('disp');
       const imageIdx = col('url-immagine') >= 0 ? col('url-immagine') : col('disegno');
@@ -453,9 +450,6 @@ async function fetchProductsData(customId, customTab) {
         const price = r[priceIdx] != null ? Number(r[priceIdx]) : 0;
         const stock = r[stockIdx] != null ? Number(r[stockIdx]) : 0;
         const maxDisc = r[maxDiscIdx] != null ? Number(r[maxDiscIdx]) : 60;
-        const locVal = ubiIdx >= 0 && r[ubiIdx] != null ? String(r[ubiIdx]).trim() : '';
-        const eanVal = eanIdx >= 0 && r[eanIdx] != null ? String(r[eanIdx]).trim() : '';
-        const umVal = umIdx >= 0 && r[umIdx] != null ? String(r[umIdx]).trim() : 'PZ';
 
         products.push({
           id: caId,
@@ -466,9 +460,6 @@ async function fetchProductsData(customId, customTab) {
           macroFamily: String(r[macroIdx] || '').trim(),
           family: String(r[famIdx] || '').trim(),
           group: String(r[groupIdx] || '').trim(),
-          location: locVal,
-          barcode: eanVal,
-          um: umVal,
           price: Number.isFinite(price) ? price : 0,
           stock: Number.isFinite(stock) ? stock : 0,
           imageRef: String(r[disegnoIdx] || r[imageIdx] || '').trim(),
@@ -573,7 +564,7 @@ async function runDiagnostics(testCfg = {}) {
       status: 'warning',
       icon: '🟡',
       label: 'Copia locale attiva',
-      message: 'Uso dati locali di fallback (Climawell)',
+      message: 'Uso dati locali di fallback (Pascal Milano 2)',
       details: 'Connessione Google Sheets API non attiva'
     };
   }

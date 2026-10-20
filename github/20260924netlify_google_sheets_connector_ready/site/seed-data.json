@@ -1,27 +1,27 @@
 {
   "company": {
-    "companyName": "Climawell",
-    "displayName": "Climawell",
+    "companyName": "Pascal Milano",
+    "displayName": "Pascal Cosmesi International",
     "vatNumber": "1234567890",
     "taxCode": "",
     "address": "Via F.lli Bandiera 24",
     "postalCode": "50100",
     "city": "Sovigliana",
-    "province": "Firenze",
+    "province": "FIrenze",
     "country": "Italia",
-    "email": "info@climawell.it",
+    "email": "info@pascalmilano.it",
     "pec": "",
     "phone": "",
-    "website": "www.climawell.it",
+    "website": "",
     "sdiCode": "",
     "iban": "",
     "logoFileName": "",
-    "footerText": "© Climawell — Sistema Gestionale Rete Vendite",
+    "footerText": "",
     "legalNotes": "",
     "currency": "EUR",
     "defaultVat": "22",
     "offerValidityDays": "30",
-    "ordersEmail": "info@climawell.it"
+    "ordersEmail": "info@pascalmilano.it"
   },
   "agents": [
     {
