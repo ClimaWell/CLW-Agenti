@@ -330,11 +330,12 @@
             .from('agents')
             .select('*')
             .order('name', { ascending: true });
-          if (!error && data && data.length) {
-            // Filtra solo gli agenti attivi: verifica sia la colonna manuale 'attivo' sia 'active'
+          if (!error && Array.isArray(data) && data.length) {
+            // Esclude solo i record tecnici o di servizio non operativi
+            const blacklist = ['NON USARE', 'SENZA AGENTE', 'SENZA NOME', 'CLIMAWELL 2', 'CLIMAWELL SRL', 'DIREZIONE', 'VIA MORELLI', 'VIA DELLA CASELLA', 'VIA COSSERIA', 'VIA XX SETTEMBRE'];
             const activeAgents = data.filter(a => {
-              if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
-              if (a.active === false || a.active === 'false' || a.active === 0) return false;
+              const nameUpper = String(a.name || '').toUpperCase();
+              if (blacklist.some(k => nameUpper.includes(k))) return false;
               return true;
             });
             setLocalCache('agents', activeAgents);
@@ -345,13 +346,7 @@
         }
       }
       const cached = await getLocalCache('agents');
-      if (cached && Array.isArray(cached)) {
-        return cached.filter(a => {
-          if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
-          if (a.active === false || a.active === 'false' || a.active === 0) return false;
-          return true;
-        });
-      }
+      if (cached && Array.isArray(cached) && cached.length) return cached;
       return [];
     },
 
@@ -690,8 +685,11 @@
         const d2 = Number(l.discounts?.[1] || l.discount_2) || 0;
         const d3 = Number(l.discounts?.[2] || l.discount_3) || 0;
         const d4 = Number(l.discounts?.[3] || l.discount_4) || 0;
-        const tot = Number(l.net || l.total || (q * price * (1 - d1/100) * (1 - d2/100))) || 0;
-        const netP = q > 0 ? tot / q : price;
+        const dExtra = Number(l.extraDiscount || l.discount_extra || l.extra_discount) || 0;
+        const discMult = (1 - d1/100) * (1 - d2/100) * (1 - d3/100) * (1 - d4/100) * (1 - dExtra/100);
+        const markupMult = 1 + (Number(l.markup) || 0) / 100;
+        const tot = Number(l.net || l.total || (q * price * discMult * markupMult)) || 0;
+        const netP = q > 0 ? tot / q : (price * discMult * markupMult);
 
         return {
           document_number: number,
@@ -707,6 +705,7 @@
           discount_2: d2,
           discount_3: d3,
           discount_4: d4,
+          discount_extra: dExtra,
           net_price: Math.round(netP * 10000) / 10000,
           vat: Number(prod.vat || l.vat) || 22,
           total: Math.round(tot * 100) / 100
@@ -720,7 +719,13 @@
 
           if (formattedLines.length > 0) {
             await client.from('document_lines').delete().eq('document_number', number);
-            const { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            let { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            if (linesErr && (linesErr.message || '').includes('discount_extra')) {
+              // Fallback se la colonna non è ancora creata nel database Supabase
+              const safeLines = formattedLines.map(({ discount_extra, ...rest }) => rest);
+              const retry = await client.from('document_lines').insert(safeLines);
+              linesErr = retry.error;
+            }
             if (linesErr) console.warn('[Supabase] Errore inserimento righe documento:', linesErr);
           }
         } catch (e) {

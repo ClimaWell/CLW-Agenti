@@ -4,30 +4,32 @@
 const OFFICIAL_SYSTEM_SPREADSHEETS = Object.freeze({
   company: {
     sheetName: "Dati_Azienda_e_Mandanti",
-    spreadsheetId: "1-ntNPKA3gdjZaxYntGNkXtKC5Kt4JIXGSoQfESO169M",
+    spreadsheetId: "13OvGppFZm9WnA8SL_6gpNi7s_A2P0seWogN1DoVwZHA",
     tab: "Dati azienda"
   },
   agents: {
     fileName: "Anagrafica_Agenti",
-    spreadsheetId: "13HaTubf4_xVTtzkQUcYINkRtuSzLR2qGzJAiA-oAecU",
+    spreadsheetId: "1Aspw3CnD0bgAqqZW4PoN-OOSSZBBtNrurTa3fy_56Tk",
     tab: "Agenti"
   },
   customers: {
     fileName: "clienti",
-    spreadsheetId: "1rkFDBTCJD3JlrcvyOPGHjYTJDkjuMc24dJ7l6EqQ6I8",
+    spreadsheetId: "1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8",
     tab: "clienti"
   },
   products: {
     fileName: "Articoli",
-    spreadsheetId: "17ErnowHZDqA3WDTN5auHkyTBPVn4MqkI8BFkiqkDhmE",
+    spreadsheetId: "1g6zrWK_zZJZ82kdoNgda9KuoemYlSs0XGRRfJvoOvUk",
     tab: "q_listino_prezzi_catalogo"
   },
   repository: {
     folder: "Repository",
-    fileName: "Registro offerte e ordini",
-    spreadsheetId: "1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc",
-    tabOffers: "Offerte",
-    tabOrders: "Ordini"
+    fileName: "Registro_Offerte_e_Ordini_Plus2000",
+    spreadsheetId: "10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw",
+    tabHeader: "DocTes",
+    tabLines: "DocRig",
+    tabOffers: "DocTes",
+    tabOrders: "DocRig"
   },
   warehouse: {
     folder: "Repository",
@@ -37,8 +39,10 @@ const OFFICIAL_SYSTEM_SPREADSHEETS = Object.freeze({
     tabParameters: "Parametri_Produzione"
   },
   googleDrive: {
-    sourceFolderUrl: "https://drive.google.com/drive/folders/1lr8lThQr1SxP4LAx2n69_pDxwu36ifh9",
-    folderId: "1lr8lThQr1SxP4LAx2n69_pDxwu36ifh9"
+    sourceFolderUrl: "https://drive.google.com/drive/folders/1K4tkUVi_4w8FrpKanPGMDwMwqW8pfClq",
+    folderId: "1K4tkUVi_4w8FrpKanPGMDwMwqW8pfClq",
+    repositoryFolderUrl: "https://drive.google.com/drive/folders/1cxVlox1rdrAhPnDY3nToOs2XUZHWvFO_",
+    repositoryFolderId: "1cxVlox1rdrAhPnDY3nToOs2XUZHWvFO_"
   },
   lastUpdate: "",
   source: "Configurazione fissa di sistema (Google Drive)"
@@ -50,7 +54,7 @@ function isInvalidSpreadsheetId(id) {
   if (!id || typeof id !== 'string') return true;
   const s = id.trim();
   if (s.length < 20) return true;
-  if (s.includes('1mnW') || s.includes('1N6ZcGa') || s.includes('undefined') || s.includes('null')) return true;
+  if (s.includes('1mnW') || s.includes('1N6ZcGa') || s.includes('undefined') || s.includes('null') || s.includes('1Ohp34c') || s.includes('10hp34cPu6Zxc')) return true;
   return false;
 }
 
