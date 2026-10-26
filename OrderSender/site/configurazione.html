@@ -591,6 +591,29 @@
       </div>
     </div>
 
+    <!-- SEZIONE MONITORAGGIO FLUSSO TEMPO REALE PLUS 2000 -->
+    <div class="section-card" style="border-left: 5px solid #0284c7;">
+      <h3><span>⚡</span> Flusso in Tempo Quasi Reale: Web App ➔ Supabase ➔ Plus 2000</h3>
+      <p>
+        Come garantiamo che le offerte e gli ordini inseriti dagli agenti sul web arrivino subito a disposizione degli operatori in ufficio su Plus 2000:
+      </p>
+      
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px;">
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:16px;">
+          <strong style="color:#0369a1; display:block; margin-bottom:4px;">1. Inserimento Agente / Magazzino</strong>
+          <span style="font-size:0.85rem; color:#334155;">L'agente completa l'offerta o l'ordine da smartphone o PC. Il documento viene salvato istantaneamente su Supabase Cloud.</span>
+        </div>
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px;">
+          <strong style="color:#15803d; display:block; margin-bottom:4px;">2. Servizio Continuo in Sede (Demone)</strong>
+          <span style="font-size:0.85rem; color:#334155;">Il servizio <span class="code-pill">servizio_sync_continuo.py</span> attivo sul server aziendale controlla Supabase ogni 30 secondi per nuovi ordini.</span>
+        </div>
+        <div style="background:#fefce8; border:1px solid #fef08a; border-radius:12px; padding:16px;">
+          <strong style="color:#a16207; display:block; margin-bottom:4px;">3. Registrazione Immediata su Plus 2000</strong>
+          <span style="font-size:0.85rem; color:#334155;">L'offerta o l'ordine viene creato in <span class="code-pill">DocTes</span> e <span class="code-pill">DocRig</span> con causale (OFC/OCL), cliente, agente e sconti, visibile subito agli impiegati!</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ANTEPRIMA TRASPARENZA DATI REALI -->
     <section class="section-card">
       <h3><span>🔍</span> Trasparenza Dati Reali: Ultimi Agenti e Articoli Sincronizzati</h3>

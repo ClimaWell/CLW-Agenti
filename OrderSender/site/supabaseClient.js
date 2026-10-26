@@ -99,24 +99,54 @@
       const client = initClient();
       if (client) {
         try {
-          let q = client
-            .from('products')
-            .select('*')
-            .eq('active', true)
-            .order('code', { ascending: true });
-
-          if (options.limit) q = q.limit(options.limit);
           if (options.search) {
             const s = options.search.trim();
-            q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,barcode.ilike.%${s}%,brand.ilike.%${s}%`);
+            const sNoSpace = s.replace(/\s+/g, '');
+            const orConditions = [
+              `code.ilike.%${s}%`,
+              `code.ilike.%${sNoSpace}%`,
+              `description.ilike.%${s}%`,
+              `barcode.ilike.%${s}%`,
+              `barcode.ilike.%${sNoSpace}%`,
+              `brand.ilike.%${s}%`
+            ].join(',');
+
+            const { data, error } = await client
+              .from('products')
+              .select('*')
+              .eq('active', true)
+              .or(orConditions)
+              .limit(options.limit || 50);
+
+            if (error) throw error;
+            return data || [];
           }
 
-          const { data, error } = await q;
-          if (error) throw error;
-          if (data && data.length) {
-            // Salva in cache locale per modalità offline
-            setLocalCache('products', data);
-            return data;
+          // Scaricamento catalogo completo con paginazione a blocchi di 1.000 (bypass limite PostgREST)
+          let allProds = [];
+          let from = 0;
+          const chunkSize = 1000;
+          const maxLimit = options.limit || 50000;
+
+          while (from < maxLimit) {
+            const to = Math.min(from + chunkSize - 1, maxLimit - 1);
+            const { data, error } = await client
+              .from('products')
+              .select('*')
+              .eq('active', true)
+              .order('code', { ascending: true })
+              .range(from, to);
+
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allProds.push(...data);
+            if (data.length < chunkSize) break;
+            from += chunkSize;
+          }
+
+          if (allProds.length) {
+            setLocalCache('products', allProds);
+            return allProds;
           }
         } catch (err) {
           console.warn('[Supabase] Errore lettura prodotti, fallback locale:', err.message);
@@ -135,14 +165,22 @@
     async findProductByBarcodeOrCode(codeOrBarcode) {
       if (!codeOrBarcode) return null;
       const term = String(codeOrBarcode).trim();
+      const termNoSpace = term.replace(/\s+/g, '');
       const client = initClient();
 
       if (client) {
         try {
+          const orFilter = [
+            `code.ilike.${term}`,
+            `code.ilike.${termNoSpace}`,
+            `barcode.ilike.%${term}%`,
+            `barcode.ilike.%${termNoSpace}%`
+          ].join(',');
+
           const { data, error } = await client
             .from('products')
             .select('*, product_locations(*)')
-            .or(`barcode.eq.${term},code.eq.${term}`)
+            .or(orFilter)
             .limit(1);
 
           if (!error && data && data.length) return data[0];
@@ -153,11 +191,21 @@
 
       // Fallback su cache locale
       const prods = (await getLocalCache('products')) || [];
+      const termClean = term.toLowerCase().replace(/\s+/g, '');
       return (
         prods.find(
-          p =>
-            String(p.barcode || '').trim() === term ||
-            String(p.code || '').trim().toLowerCase() === term.toLowerCase()
+          p => {
+            const codeClean = String(p.code || '').toLowerCase().replace(/\s+/g, '');
+            if (codeClean === termClean) return true;
+            const b = String(p.barcode || '').trim();
+            const bList = b.split(',').map(s => s.trim());
+            return (
+              b === term ||
+              bList.includes(term) ||
+              b.includes(term) ||
+              bList.includes(termNoSpace)
+            );
+          }
         ) || null
       );
     },
@@ -231,7 +279,48 @@
     },
 
     /**
+     * Salva o aggiorna un cliente direttamente su Supabase
+     */
+    async saveCustomer(cust) {
+      const client = initClient();
+      const code = cust.code || cust.id || `CLI-${Date.now()}`;
+      const payload = {
+        code: code,
+        name: cust.name,
+        address: cust.address || '',
+        city: cust.city || '',
+        province: cust.province || '',
+        postal_code: cust.postalCode || cust.postal_code || '',
+        phone: cust.phone || '',
+        mobile: cust.mobile || '',
+        email: cust.email || '',
+        vat_number: cust.vat || cust.vatNumber || cust.vat_number || cust.tax || '',
+        tax_code: cust.taxCode || cust.tax_code || cust.tax || '',
+        sdi_code: cust.sdi || cust.sdi_code || '0000000',
+        agent_code: cust.agentId || cust.agent_code || null,
+        payment_method: cust.payment || cust.payment_method || 'Ri.Ba. 60 gg. f.m.',
+        iban: cust.iban || '',
+        updated_at: new Date().toISOString()
+      };
+
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('customers')
+            .upsert(payload, { onConflict: 'code' })
+            .select();
+          if (error) console.warn('[Supabase] Errore inserimento cliente:', error.message);
+          return data && data[0] ? data[0] : payload;
+        } catch (err) {
+          console.warn('[Supabase] Errore inserimento cliente:', err.message);
+        }
+      }
+      return payload;
+    },
+
+    /**
      * Recupera l'elenco ufficiale degli agenti da Supabase (sincronizzati da Plus 2000)
+     * Esclude categoricamente gli agenti disattivati (colonna 'attivo' o 'active' a False)
      */
     async getAgents() {
       const client = initClient();
@@ -240,18 +329,75 @@
           const { data, error } = await client
             .from('agents')
             .select('*')
-            .eq('active', true)
             .order('name', { ascending: true });
-          if (!error && data && data.length) {
-            setLocalCache('agents', data);
-            return data;
+          if (!error && Array.isArray(data) && data.length) {
+            // Esclude solo i record tecnici o di servizio non operativi
+            const blacklist = ['NON USARE', 'SENZA AGENTE', 'SENZA NOME', 'CLIMAWELL 2', 'CLIMAWELL SRL', 'DIREZIONE', 'VIA MORELLI', 'VIA DELLA CASELLA', 'VIA COSSERIA', 'VIA XX SETTEMBRE'];
+            const activeAgents = data.filter(a => {
+              const nameUpper = String(a.name || '').toUpperCase();
+              if (blacklist.some(k => nameUpper.includes(k))) return false;
+              return true;
+            });
+            setLocalCache('agents', activeAgents);
+            return activeAgents;
           }
         } catch (err) {
           console.warn('[Supabase] Errore lettura agenti:', err.message);
         }
       }
       const cached = await getLocalCache('agents');
-      return cached || [];
+      if (cached && Array.isArray(cached) && cached.length) return cached;
+      return [];
+    },
+
+    /**
+     * Converte un'offerta (OFC) in un ordine (OCL) su Supabase
+     */
+    async convertOfferToOrder(offerNumber) {
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non disponibile');
+
+      const { data: docs, error: docErr } = await client
+        .from('documents')
+        .select('*')
+        .eq('number', offerNumber)
+        .limit(1);
+
+      if (docErr || !docs || !docs.length) {
+        throw new Error(`Offerta ${offerNumber} non trovata su Supabase`);
+      }
+
+      const orig = docs[0];
+      const newOrderNum = offerNumber.replace(/^OFC/i, 'OCL').replace(/^OFF/i, 'ORD');
+      const orderNumber = newOrderNum !== offerNumber ? newOrderNum : `ORD-${offerNumber}`;
+
+      const newDoc = {
+        ...orig,
+        document_type: 'OCL',
+        number: orderNumber,
+        status: 'Inviato',
+        notes: (orig.notes ? orig.notes + ' | ' : '') + `Convertito da Offerta ${offerNumber}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      delete newDoc.id;
+
+      const { error: insErr } = await client.from('documents').upsert(newDoc, { onConflict: 'number' });
+      if (insErr) throw insErr;
+
+      const lines = await this.getDocumentLines(offerNumber);
+      if (lines && lines.length > 0) {
+        const orderLines = lines.map(l => {
+          const nl = { ...l, document_number: orderNumber };
+          delete nl.id;
+          return nl;
+        });
+        await client.from('document_lines').insert(orderLines);
+      }
+
+      await client.from('documents').update({ status: 'Confermata', updated_at: new Date().toISOString() }).eq('number', offerNumber);
+
+      return { ok: true, orderNumber };
     },
 
     /**
@@ -276,7 +422,7 @@
     },
 
     /**
-     * Recupera tutte le offerte e gli ordini da Supabase
+     * Recupera tutte le offerte e gli ordini da Supabase (con cache IndexedDB)
      */
     async getDocuments() {
       const client = initClient();
@@ -286,9 +432,42 @@
             .from('documents')
             .select('*')
             .order('created_at', { ascending: false });
-          if (!error && data) return data;
+          if (!error && Array.isArray(data)) {
+            setLocalCache('documents', data).catch(() => {});
+            return data;
+          }
+          if (error) {
+            console.warn('[Supabase] Tentativo getDocuments fallback:', error.message);
+            const res2 = await client.from('documents').select('*');
+            if (!res2.error && Array.isArray(res2.data)) {
+              setLocalCache('documents', res2.data).catch(() => {});
+              return res2.data;
+            }
+          }
         } catch (err) {
           console.warn('[Supabase] Errore documents:', err.message);
+        }
+      }
+      const cached = await getLocalCache('documents');
+      if (Array.isArray(cached) && cached.length > 0) return cached;
+      return [];
+    },
+
+    /**
+     * Recupera le righe dettagliate di un'offerta o ordine da Supabase
+     */
+    async getDocumentLines(documentNumber) {
+      const client = initClient();
+      if (client && documentNumber) {
+        try {
+          const { data, error } = await client
+            .from('document_lines')
+            .select('*')
+            .eq('document_number', documentNumber)
+            .order('line_number', { ascending: true });
+          if (!error && data && data.length > 0) return data;
+        } catch (err) {
+          console.warn('[Supabase] Errore document_lines:', err.message);
         }
       }
       return [];
@@ -506,8 +685,11 @@
         const d2 = Number(l.discounts?.[1] || l.discount_2) || 0;
         const d3 = Number(l.discounts?.[2] || l.discount_3) || 0;
         const d4 = Number(l.discounts?.[3] || l.discount_4) || 0;
-        const tot = Number(l.net || l.total || (q * price * (1 - d1/100) * (1 - d2/100))) || 0;
-        const netP = q > 0 ? tot / q : price;
+        const dExtra = Number(l.extraDiscount || l.discount_extra || l.extra_discount) || 0;
+        const discMult = (1 - d1/100) * (1 - d2/100) * (1 - d3/100) * (1 - d4/100) * (1 - dExtra/100);
+        const markupMult = 1 + (Number(l.markup) || 0) / 100;
+        const tot = Number(l.net || l.total || (q * price * discMult * markupMult)) || 0;
+        const netP = q > 0 ? tot / q : (price * discMult * markupMult);
 
         return {
           document_number: number,
@@ -523,6 +705,7 @@
           discount_2: d2,
           discount_3: d3,
           discount_4: d4,
+          discount_extra: dExtra,
           net_price: Math.round(netP * 10000) / 10000,
           vat: Number(prod.vat || l.vat) || 22,
           total: Math.round(tot * 100) / 100
@@ -536,7 +719,13 @@
 
           if (formattedLines.length > 0) {
             await client.from('document_lines').delete().eq('document_number', number);
-            const { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            let { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            if (linesErr && (linesErr.message || '').includes('discount_extra')) {
+              // Fallback se la colonna non è ancora creata nel database Supabase
+              const safeLines = formattedLines.map(({ discount_extra, ...rest }) => rest);
+              const retry = await client.from('document_lines').insert(safeLines);
+              linesErr = retry.error;
+            }
             if (linesErr) console.warn('[Supabase] Errore inserimento righe documento:', linesErr);
           }
         } catch (e) {
@@ -711,6 +900,60 @@
       const { error } = await client.from('app_users').delete().eq('id', id);
       if (error) throw error;
       return true;
+    },
+
+    /**
+     * Svuota la cache locale IndexedDB per forzare il download fresco dei dati
+     */
+    async clearLocalCache() {
+      try {
+        const db = await openFallbackDb();
+        const tx = db.transaction('data', 'readwrite');
+        tx.objectStore('data').clear();
+      } catch (e) {
+        console.warn('Errore pulizia cache:', e);
+      }
+    },
+
+    /**
+     * Invia una richiesta on-demand di sincronizzazione da Plus 2000 verso Supabase
+     */
+    async requestPlusSync(type = 'ACTIVE') {
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non disponibile');
+      const reqNumber = 'SYNC-' + Date.now();
+      const payload = {
+        document_type: 'SYNC_REQUEST',
+        number: reqNumber,
+        document_date: new Date().toISOString().split('T')[0],
+        status: 'Richiesto',
+        customer_name: 'Sistema Web App',
+        notes: type === 'FULL' ? 'FULL SYNC' : 'ACTIVE SYNC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const { data, error } = await client.from('documents').insert([payload]).select();
+      if (error) throw error;
+      return { number: reqNumber, record: (data && data[0]) || payload };
+    },
+
+    /**
+     * Verifica lo stato di avanzamento di una richiesta di sincronizzazione da Plus 2000
+     */
+    async checkPlusSyncStatus(reqNumber) {
+      const client = initClient();
+      if (!client) return null;
+      try {
+        const { data, error } = await client
+          .from('documents')
+          .select('id, number, status, notes, updated_at')
+          .eq('number', reqNumber)
+          .limit(1);
+        if (!error && data && data.length) return data[0];
+      } catch (e) {
+        console.warn('Errore checkPlusSyncStatus:', e);
+      }
+      return null;
     }
   };
 

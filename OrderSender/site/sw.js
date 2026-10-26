@@ -1,4 +1,4 @@
-const CACHE = 'offerte-agenti-v35';
+const CACHE = 'offerte-agenti-v43';
 const ASSETS = [
   '/',
   '/index.html',
@@ -35,7 +35,10 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api/')) return;
+  // Non intercettare mai le chiamate a Supabase, domini esterni o API backend
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.hostname.includes('supabase.co')) {
+    return;
+  }
 
   // Network-First for HTML, JS and JSON configuration so updates are immediately visible on all devices
   const isNetworkFirst = event.request.mode === 'navigate' ||
