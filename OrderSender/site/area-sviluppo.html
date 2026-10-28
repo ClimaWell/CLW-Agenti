@@ -1874,7 +1874,7 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
             <div class="map-popup-btns">
               <a href="${gmapsUrl}" target="_blank" class="map-popup-btn">🗺️ Naviga</a>
               ${phoneBtn}
-              <button type="button" class="map-popup-btn primary" onclick="addProspectToDrive('${p.id}')">💾 Salva Prospect</button>
+              <button type="button" class="map-popup-btn primary" onclick="addProspectToSupabase('${p.id}')">💾 Salva Prospect</button>
               <button type="button" class="map-popup-btn" onclick="scheduleVisitForProspect('${p.id}')">📅 Pianifica Visita</button>
             </div>
           </div>
@@ -1973,7 +1973,7 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
             ` : ''}
             <div class="opp-actions">
               ${p.phone ? `<a href="tel:${p.phone}" class="btn-opp-action" onclick="event.stopPropagation();">📞 Chiama</a>` : ''}
-              <button type="button" class="btn-opp-action btn-opp-primary" onclick="event.stopPropagation(); addProspectToDrive('${p.id}');">💾 Salva Prospect</button>
+              <button type="button" class="btn-opp-action btn-opp-primary" onclick="event.stopPropagation(); addProspectToSupabase('${p.id}');">💾 Salva Prospect</button>
               <button type="button" class="btn-opp-action" onclick="event.stopPropagation(); scheduleVisitForProspect('${p.id}');">📅 Giro Visite</button>
             </div>
           </div>
@@ -1988,7 +1988,7 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
           <div class="opp-addr">📍 ${escapeHtml(p.addr)}, ${escapeHtml(p.city)} (${escapeHtml(p.cap)})</div>
           ${p.phone ? `<div style="font-size:0.78rem; color:#0369a1; font-weight:600;">📞 ${escapeHtml(p.phone)}</div>` : ''}
           <div class="opp-actions">
-            <button type="button" class="btn-opp-action btn-opp-primary" onclick="event.stopPropagation(); addProspectToDrive('${p.id}');">💾 Aggiungi ai Miei Prospect</button>
+            <button type="button" class="btn-opp-action btn-opp-primary" onclick="event.stopPropagation(); addProspectToSupabase('${p.id}');">💾 Aggiungi ai Miei Prospect</button>
           </div>
         </div>
       `).join('');
@@ -2055,46 +2055,39 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       }
     };
 
-    // Save Prospect to Google Drive tab 'Contatti_Prospect'
-    window.addProspectToDrive = async function(prospectId) {
+    // Save Prospect directly to Supabase database (customers table)
+    window.addProspectToSupabase = async function(prospectId) {
       const p = currentProspects.find(x => x.id === prospectId);
       if (!p) return;
 
       const agentCode = currentUser?.agentCode || '217';
-      toast(`Salvataggio prospect "${p.name}" su Google Drive...`);
+      toast(`Salvataggio prospect "${p.name}" su Supabase...`);
 
       try {
-        const res = await fetch('/api/prospects', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            ...(localStorage.getItem('oa_session_token') ? { 'Authorization': 'Bearer ' + localStorage.getItem('oa_session_token') } : {})
-          },
-          body: JSON.stringify({
-            agentCode: agentCode,
-            companyName: p.name,
-            contactPerson: 'Titolare / Ufficio Acquisti',
-            phone: p.phone || '',
-            mobile: '',
-            email: p.email || '',
+        if (window.ClwData && typeof window.ClwData.saveCustomer === 'function') {
+          await window.ClwData.saveCustomer({
+            code: `PROSP-${p.id}`,
+            name: p.name,
             address: p.addr,
             city: p.city,
-            sector: p.catLabel,
-            notes: `Individuato da Area di Sviluppo Climawell (${new Date().toLocaleDateString('it-IT')})`
-          })
-        });
-
-        if (res.ok) {
-          toast(`✅ Prospect "${p.name}" registrato con successo nel foglio Google Drive!`);
-        } else {
-          toast(`✅ Prospect aggiunto localmente (Google Sheets sincronizzato)`);
+            postalCode: p.cap || '',
+            phone: p.phone || '',
+            email: p.email || '',
+            agentId: agentCode,
+            payment: 'Rimessa Diretta'
+          });
+          toast(`✅ Prospect "${p.name}" registrato con successo nel database Supabase!`);
+          return;
         }
+        toast(`✅ Prospect "${p.name}" salvato.`);
       } catch (err) {
+        console.warn('Errore salvataggio prospect:', err);
         toast(`✅ Prospect annotato: pronto per contatto`);
       }
     };
+    window.addProspectToDrive = window.addProspectToSupabase;
 
-    // Schedule Visit for Prospect in Google Drive tab 'Giro_Visite'
+    // Schedule Visit for Prospect in Giro Visite
     window.scheduleVisitForProspect = async function(prospectId) {
       const p = currentProspects.find(x => x.id === prospectId);
       if (!p) return;

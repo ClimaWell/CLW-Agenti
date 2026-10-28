@@ -736,7 +736,7 @@
         📦 Pipeline Ordini & DDT
       </button>
       <button type="button" id="btnModeProduction" class="mode-switch-btn" onclick="switchMainView('production')">
-        🏭 Piano Produzione & Scorte Intelligenti (Google Drive)
+        🏭 Piano Produzione & Scorte Intelligenti (Supabase)
       </button>
     </div>
 
@@ -808,12 +808,12 @@
         <div class="workflow-title">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
             <h1>Pianificazione Produzione & Scorte Intelligenti</h1>
-            <span class="source-badge"><span class="dot"></span> Dati Live Google Drive (Articoli & Ordini)</span>
+            <span class="source-badge"><span class="dot"></span> Dati Live Supabase & Plus 2000</span>
           </div>
           <p>Algoritmo auto-apprenditivo: calcola lead time reale storico dagli ordini evasi e ottimizza punto di riordino (ROP), scorta minima e lotti di fabbricazione</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" id="btnRefreshProd" class="btn secondary">🔄 Ricalcola dati Google Drive</button>
+          <button type="button" id="btnRefreshProd" class="btn secondary">🔄 Ricalcola dati Supabase</button>
           <button type="button" id="btnExportProdCsv" class="btn secondary">📥 Esporta CSV</button>
           <button type="button" id="btnPrintProduction" class="btn primary">🖨️ Stampa Ordine Produzione</button>
         </div>
@@ -872,7 +872,7 @@
             <tr>
               <th style="width:105px;">Codice</th>
               <th>Descrizione & Famiglia</th>
-              <th style="text-align:center;">Giacenza Live (Drive)</th>
+              <th style="text-align:center;">Giacenza Live (Supabase)</th>
               <th style="text-align:center;">Impegnato Clienti</th>
               <th style="text-align:center;">Disp. Netta</th>
               <th style="text-align:center;">Lead Time Appreso</th>
@@ -889,7 +889,7 @@
           <tbody id="productionTableBody">
             <tr>
               <td colspan="14" style="text-align:center; padding:40px; color:var(--muted);">
-                Caricamento dati di produzione e calcolo algoritmo da Google Drive in corso…
+                Caricamento dati di produzione e calcolo algoritmo da Supabase in corso…
               </td>
             </tr>
           </tbody>
@@ -900,12 +900,12 @@
       <div class="info-card">
         <h3>💡 Come funziona l'algoritmo auto-apprenditivo di produzione</h3>
         <p style="margin:0; font-size:.85rem; color:#64748b;">
-          Tutti i parametri vengono calcolati esclusivamente estraendo lo storico ordini e le giacenze attuali presenti sui file Google Drive aziendali.
+          Tutti i parametri vengono calcolati esclusivamente estraendo lo storico ordini e le giacenze attuali presenti sul database Supabase.
         </p>
         <div class="info-grid">
           <div class="info-block">
             <strong>1. Apprendimento Tempo di Evasione / Produzione</strong>
-            L'algoritmo misura per ogni ordine evaso su Google Drive i giorni effettivi trascorsi tra <em>data inserimento ordine</em> e <em>data spedizione/DDT</em>.
+            L'algoritmo misura per ogni ordine evaso su Supabase i giorni effettivi trascorsi tra <em>data inserimento ordine</em> e <em>data spedizione/DDT</em>.
             <div class="formula-tag">L_reale = Data_Spedizione - Data_Ordine</div>
           </div>
           <div class="info-block">
@@ -951,7 +951,7 @@
       <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:.85rem;">
         <div>Codice: <strong id="modalProdCodeLabel">--</strong></div>
         <div>Descrizione: <strong id="modalProdNameLabel">--</strong></div>
-        <div>Giacenza attuale Google Drive: <strong id="modalProdStockLabel">--</strong></div>
+        <div>Giacenza attuale Supabase: <strong id="modalProdStockLabel">--</strong></div>
       </div>
 
       <div class="two-cols" style="margin-bottom:12px;">
@@ -2394,7 +2394,7 @@
       $('productionTableBody').innerHTML = `
         <tr>
           <td colspan="14" style="text-align:center; padding:40px; color:var(--muted);">
-            🔄 Connessione a Google Drive in corso… calcolo tempi reali e fabbisogni…
+            🔄 Connessione a Supabase in corso… calcolo tempi reali e fabbisogni…
           </td>
         </tr>
       `;
@@ -2625,7 +2625,7 @@
           </div>
           <div style="text-align:right;">
             <div><strong>Data Emissione:</strong> ${dateStr}</div>
-            <div><strong>Fonte Dati:</strong> Google Drive (Real-time)</div>
+            <div><strong>Fonte Dati:</strong> Supabase PostgreSQL (Real-time)</div>
           </div>
         </div>
 
@@ -2666,7 +2666,7 @@
     // Export Production CSV
     $('btnExportProdCsv').onclick = () => {
       if (!allProduction.length) return;
-      const headers = ['Codice', 'Descrizione', 'Marca', 'Famiglia', 'Giacenza_Drive', 'Impegnato_Ordini', 'Disponibile_Netto', 'Lead_Time_Appreso_gg', 'Consumo_Giornaliero', 'Scorta_Minima_SS', 'Punto_Riordino_ROP', 'Scorta_Massima', 'Lotto_Minimo', 'Quantita_Da_Produrre', 'Stato_Urgenza'];
+      const headers = ['Codice', 'Descrizione', 'Marca', 'Famiglia', 'Giacenza_Supabase', 'Impegnato_Ordini', 'Disponibile_Netto', 'Lead_Time_Appreso_gg', 'Consumo_Giornaliero', 'Scorta_Minima_SS', 'Punto_Riordino_ROP', 'Scorta_Massima', 'Lotto_Minimo', 'Quantita_Da_Produrre', 'Stato_Urgenza'];
       const rows = allProduction.map(x => [
         `"${x.code}"`,
         `"${(x.description || '').replace(/"/g, '""')}"`,

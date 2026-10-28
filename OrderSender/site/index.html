@@ -1131,8 +1131,6 @@
     </div>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/supabaseClient.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     let allPractices = [];
@@ -1313,10 +1311,30 @@
       });
     }
 
-    function openDetailModal(item) {
+    async function openDetailModal(item) {
       const isOffer = item.type === 'Offerta';
       const plusRef = getPlusDocReference(item);
       $('modalTitle').textContent = `${item.type}: ${item.number || ''}`;
+
+      let lines = item.payload?.lines || item.lines || [];
+      if (!lines.length && window.ClwData && typeof window.ClwData.getDocumentLines === 'function') {
+        try {
+          const supLines = await window.ClwData.getDocumentLines(item.number || item.id);
+          if (supLines && supLines.length > 0) {
+            lines = supLines.map(l => ({
+              code: l.product_code || l.code,
+              description: l.description,
+              quantity: Number(l.quantity) || 1,
+              listPrice: Number(l.list_price) || 0,
+              net: Number(l.total || l.net_price) || 0
+            }));
+            item.lines = lines;
+          }
+        } catch (e) {
+          console.warn('[Supabase] Errore caricamento righe dettaglio:', e);
+        }
+      }
+
       $('modalContent').innerHTML = `
         ${plusRef ? `
         <div class="detail-row" style="background:#eff6ff; border:1.5px solid #0284c7; border-radius:10px; padding:12px 16px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
@@ -1338,10 +1356,10 @@
           <span>Cliente</span>
           <strong>${item.customer_name || item.customerName || '—'}</strong>
         </div>
-        ${item.customer_id ? `
+        ${item.customer_id || item.customer_code ? `
         <div class="detail-row">
           <span>Codice cliente</span>
-          <strong>${item.customer_id}</strong>
+          <strong>${item.customer_id || item.customer_code}</strong>
         </div>` : ''}
         <div class="detail-row">
           <span>Agente incaricato</span>
@@ -1357,7 +1375,7 @@
         </div>
         <div class="detail-row">
           <span>Data invio</span>
-          <strong>${formatDate(item.submitted_at)}</strong>
+          <strong>${formatDate(item.submitted_at || item.date)}</strong>
         </div>
         ${item.updated_at && item.updated_at !== item.submitted_at ? `
         <div class="detail-row">
@@ -1389,9 +1407,9 @@
           <span>Offerta di origine</span>
           <strong>${item.origin_offer_id}</strong>
         </div>` : ''}
-        ${item.payload?.lines?.length ? `
+        ${lines && lines.length ? `
         <div style="margin-top:12px;">
-          <strong style="display:block; font-size:.85rem; margin-bottom:6px; color:#0f172a;">Articoli inclusi (${item.payload.lines.length}):</strong>
+          <strong style="display:block; font-size:.85rem; margin-bottom:6px; color:#0f172a;">Articoli inclusi (${lines.length}):</strong>
           <table style="width:100%; border-collapse:collapse; font-size:.78rem; background:#fff; border-radius:6px; overflow:hidden; border:1px solid #e2e8f0;">
             <thead style="background:#f8fafc; text-align:left; color:#475569;">
               <tr>
@@ -1402,12 +1420,12 @@
               </tr>
             </thead>
             <tbody>
-              ${item.payload.lines.map(l => `
+              ${lines.map(l => `
                 <tr style="border-top:1px solid #f1f5f9;">
-                  <td style="padding:6px 8px; font-weight:600; color:#1e293b;">${l.code}</td>
-                  <td style="padding:6px 8px; color:#334155;">${l.description}</td>
-                  <td style="padding:6px 8px; text-align:right;">${l.quantity}</td>
-                  <td style="padding:6px 8px; text-align:right; font-weight:600; color:#0f172a;">${formatEuro(l.net || (l.listPrice * l.quantity))}</td>
+                  <td style="padding:6px 8px; font-weight:600; color:#1e293b;">${l.code || l.product_code || ''}</td>
+                  <td style="padding:6px 8px; color:#334155;">${l.description || ''}</td>
+                  <td style="padding:6px 8px; text-align:right;">${l.quantity || l.qty || 1}</td>
+                  <td style="padding:6px 8px; text-align:right; font-weight:600; color:#0f172a;">${formatEuro(l.net || l.total || (Number(l.listPrice || l.list_price || 0) * Number(l.quantity || 1)))}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1617,14 +1635,15 @@
         if ($('adminUsersBtn')) $('adminUsersBtn').classList.remove('hidden');
       }
 
-      // Dynamic company branding from Google Sheets
-      api('company').then(res => {
-        if (res && res.company) {
-          const comp = res.company;
-          const text = comp.footerText || `© ${comp.displayName || comp.companyName || 'Climawell'} — Sistema Gestionale Rete Vendite`;
-          if ($('footerText')) $('footerText').textContent = text;
-        }
-      }).catch(() => { });
+      // Dynamic company branding direttamente da Supabase (company_profile)
+      if (window.ClwData && typeof window.ClwData.getCompany === 'function') {
+        window.ClwData.getCompany().then(comp => {
+          if (comp) {
+            const text = comp.footer_text || comp.footerText || `© ${comp.display_name || comp.company_name || 'Climawell'} — Sistema Gestionale Rete Vendite`;
+            if ($('footerText')) $('footerText').textContent = text;
+          }
+        }).catch(() => { });
+      }
 
       // 2. Visualizza subito la cache locale per velocità immediata (stale-while-revalidate)
       const cached = localStorage.getItem('oa_cached_practices');
@@ -1638,80 +1657,49 @@
         } catch (_) { }
       }
 
-      // 3. Sincronizzazione in tempo reale con Supabase
+      // 3. Sincronizzazione in tempo reale esclusivamente con Supabase (UNICA FONTE ATTENDIBILE)
       try {
-        let loadedFromSupabase = false;
         if (window.ClwData && window.ClwData.isConfigured()) {
-          try {
-            const supDocs = await window.ClwData.getDocuments();
-            if (Array.isArray(supDocs)) {
-              allPractices = supDocs.map(d => ({
-                id: d.number,
-                number: d.number,
-                type: d.document_type === 'OCL' ? 'Ordine' : (d.document_type === 'DDT' ? 'DDT' : 'Offerta'),
-                customer_name: d.customer_name,
-                customer_code: d.customer_code,
-                agent_name: d.agent_name,
-                agent_code: d.agent_code,
+          const supDocs = await window.ClwData.getDocuments();
+          if (Array.isArray(supDocs)) {
+            allPractices = supDocs.map(d => {
+              const docTypeRaw = String(d.document_type || d.type || '').toUpperCase();
+              const isOrder = docTypeRaw.includes('ORD') || docTypeRaw === 'OCL';
+              const isDdt = docTypeRaw.includes('DDT');
+              const finalType = isOrder ? 'Ordine' : (isDdt ? 'DDT' : 'Offerta');
+
+              return {
+                id: d.number || d.id,
+                number: d.number || d.id,
+                type: finalType,
+                customer_name: d.customer_name || d.customerName || 'Cliente',
+                customer_code: d.customer_code || d.customer_id || '',
+                agent_name: d.agent_name || '',
+                agent_code: d.agent_code || '',
                 total: Number(d.total) || 0,
                 subtotal: Number(d.subtotal) || 0,
                 status: d.status || 'Inviato',
                 updated_at: d.updated_at || d.created_at || d.document_date,
                 submitted_at: d.created_at || d.updated_at || d.document_date,
-                date: d.document_date,
-                plus_doc_id: d.plus_doc_id
-              })).sort((x, y) => String(y.updated_at || y.submitted_at || y.date || '').localeCompare(String(x.updated_at || x.submitted_at || x.date || '')));
+                date: d.document_date || (d.created_at ? d.created_at.slice(0, 10) : ''),
+                plus_doc_id: d.plus_doc_id || null,
+                notes: d.notes || '',
+                lines: []
+              };
+            }).sort((x, y) => String(y.updated_at || y.submitted_at || y.date || '').localeCompare(String(x.updated_at || x.submitted_at || x.date || '')));
 
-              localStorage.setItem('oa_cached_practices', JSON.stringify(allPractices));
-              $('statusDot').style.background = '#34d399';
-              $('offlineNotice').classList.add('hidden');
-              loadedFromSupabase = true;
-            }
-          } catch (supErr) {
-            console.warn('[Supabase] Errore caricamento documenti:', supErr);
+            localStorage.setItem('oa_cached_practices', JSON.stringify(allPractices));
+            $('statusDot').style.background = '#34d399';
+            $('offlineNotice').classList.add('hidden');
           }
-        }
-
-        // Se Supabase non è configurato (ambiente legacy senza database), usa il vecchio foglio
-        if (!loadedFromSupabase && (!window.ClwData || !window.ClwData.isConfigured())) {
-          if (window.companyConfigPromise) {
-            try { await window.companyConfigPromise; } catch { }
-          }
-          const rawRepo = window.companyConfig?.repository?.spreadsheetId;
-          const repoId = (rawRepo && rawRepo.length >= 20 && !rawRepo.includes('1mnW')) ? rawRepo : '1Hi1Nppj4szI4UwfSeC632KkpF0dEQjqxnIVIenn-Fjc';
-          const regParam = `?id=${encodeURIComponent(repoId)}`;
-          const [a, b] = await Promise.all([api(`offers${regParam}`), api(`orders${regParam}`)]);
-
-          const practiceMap = new Map();
-          (a.offers || []).forEach(x => {
-            const num = x.number || x.offer_number || x.offerNumber || x.id;
-            practiceMap.set(num, { ...x, type: x.type || 'Offerta', number: num });
-          });
-          (b.orders || []).forEach(x => {
-            const num = x.number || x.order_number || x.orderNumber || x.id;
-            if (!practiceMap.has(num)) {
-              practiceMap.set(num, { ...x, type: x.type || 'Ordine', number: num });
-            } else {
-              const isOrder = x.tpDoc === 'OCL' || x.tpDoc === 'ORC' || x.tpDoc === 'ORD' || (x.type === 'Ordine');
-              if (isOrder) {
-                practiceMap.set(num, { ...x, type: 'Ordine', number: num });
-              }
-            }
-          });
-          allPractices = Array.from(practiceMap.values())
-            .sort((x, y) => String(y.updated_at || y.submitted_at || '').localeCompare(String(x.updated_at || x.submitted_at || '')));
-
-          localStorage.setItem('oa_cached_practices', JSON.stringify(allPractices));
-          $('statusDot').style.background = '#34d399';
-          $('offlineNotice').classList.add('hidden');
         }
       } catch (err) {
-        console.warn('Errore lettura pratiche, utilizzo cache locale:', err.message);
+        console.warn('[Supabase] Errore lettura pratiche, utilizzo cache locale:', err.message);
         $('statusDot').style.background = '#fbbf24';
         const cachedFallback = localStorage.getItem('oa_cached_practices');
         if (cachedFallback) {
           allPractices = JSON.parse(cachedFallback);
-          $('offlineNoticeText').textContent = 'Connessione al database non disponibile al momento. Visualizzazione dati locali.';
+          $('offlineNoticeText').textContent = 'Connessione a Supabase non disponibile al momento. Visualizzazione dati locali.';
           $('offlineNotice').classList.remove('hidden');
         }
       }
