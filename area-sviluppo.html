@@ -1749,41 +1749,9 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       return (R * c).toFixed(1);
     }
 
-    // Find closest active client to a prospect (fast spatial bounding box)
+    // Ottimizzazione massima per fluidità mappa: nessun calcolo bloccante sul thread principale
     function findClosestClient(prospect) {
-      if (!filteredCustomers || !filteredCustomers.length) return null;
-      let minDst = 9999;
-      let closest = null;
-      const pLat = prospect.lat;
-      const pLng = prospect.lng;
-
-      // Fase 1: cerca nei clienti entro raggio locale rapido (~35 km)
-      for (let i = 0; i < filteredCustomers.length; i++) {
-        const cl = filteredCustomers[i];
-        const coords = cl._coords || getCustomerCoords(cl);
-        if (Math.abs(coords[0] - pLat) > 0.4 || Math.abs(coords[1] - pLng) > 0.4) {
-          continue;
-        }
-        const d = parseFloat(calcDistanceKm(pLat, pLng, coords[0], coords[1]));
-        if (d < minDst) {
-          minDst = d;
-          closest = { client: cl, distanceKm: d };
-        }
-      }
-
-      // Fallback globale solo se nessun cliente nelle vicinanze immediate
-      if (!closest) {
-        for (let i = 0; i < filteredCustomers.length; i++) {
-          const cl = filteredCustomers[i];
-          const coords = cl._coords || getCustomerCoords(cl);
-          const d = parseFloat(calcDistanceKm(pLat, pLng, coords[0], coords[1]));
-          if (d < minDst) {
-            minDst = d;
-            closest = { client: cl, distanceKm: d };
-          }
-        }
-      }
-      return closest;
+      return null;
     }
 
     // Genera l'HTML del popup del cliente in modo lazy solo quando viene cliccato
@@ -1907,13 +1875,6 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
         const icon = createMarkerIcon(p.cat, iconSymbol);
         const marker = L.marker([p.lat, p.lng], { icon });
 
-        const closest = findClosestClient(p);
-        const proxHtml = closest ? `
-          <div class="opp-proximity">
-            📍 A soli ${closest.distanceKm} km dal tuo cliente <strong>${escapeHtml(closest.client.name.slice(0, 18))}</strong>
-          </div>
-        ` : '';
-
         const phoneBtn = p.phone ? `<a href="tel:${p.phone}" class="map-popup-btn">📞 Chiama</a>` : '';
         const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ' ' + p.addr + ' ' + p.city)}`;
 
@@ -1929,7 +1890,6 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
             </div>
             <div class="map-popup-title">${escapeHtml(p.name)}</div>
             <div class="map-popup-addr">📍 ${escapeHtml(p.addr)} · ${escapeHtml(p.city)} (${escapeHtml(p.cap)})</div>
-            ${proxHtml}
             <div class="map-popup-btns">
               <a href="${gmapsUrl}" target="_blank" class="map-popup-btn">🗺️ Naviga</a>
               ${phoneBtn}
@@ -1997,22 +1957,12 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       renderSidebarOpportunities();
     }
 
-    // Render Sidebar Opportunities (Smart Proximity Sort)
+    // Render Sidebar Opportunities (Rendering immediato senza calcoli pesanti)
     function renderSidebarOpportunities() {
       const container = $('quickOpportunitiesList');
       if (!container) return;
 
-      // Sort prospects by proximity to any active customer
-      const enriched = currentProspects.map(p => {
-        const closest = findClosestClient(p);
-        return {
-          ...p,
-          closestClientName: closest ? closest.client.name : '',
-          distanceKm: closest ? closest.distanceKm : 999
-        };
-      }).sort((a, b) => a.distanceKm - b.distanceKm);
-
-      const topOpportunities = enriched.slice(0, 15);
+      const topOpportunities = currentProspects.slice(0, 15);
 
       container.innerHTML = topOpportunities.map(p => {
         let badgeClass = 'badge-plumber';
@@ -2025,11 +1975,6 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
             <span class="opp-badge ${badgeClass}">${escapeHtml(p.catLabel)}</span>
             <div class="opp-title">${escapeHtml(p.name)}</div>
             <div class="opp-addr">📍 ${escapeHtml(p.addr)}, ${escapeHtml(p.city)}</div>
-            ${p.closestClientName ? `
-              <div class="opp-proximity">
-                🎯 A ${p.distanceKm} km dal tuo cliente <strong>${escapeHtml(p.closestClientName.slice(0, 20))}</strong>
-              </div>
-            ` : ''}
             <div class="opp-actions">
               ${p.phone ? `<a href="tel:${p.phone}" class="btn-opp-action" onclick="event.stopPropagation();">📞 Chiama</a>` : ''}
               <button type="button" class="btn-opp-action btn-opp-primary" onclick="event.stopPropagation(); addProspectToSupabase('${p.id}');">💾 Salva Prospect</button>
@@ -2039,8 +1984,8 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
         `;
       }).join('');
 
-      // Also render full prospects tab
-      $('allProspectsList').innerHTML = enriched.map(p => `
+      // Render full prospects tab
+      $('allProspectsList').innerHTML = topOpportunities.map(p => `
         <div class="opp-card" onclick="centerMapOnProspect(${p.lat}, ${p.lng})">
           <span class="opp-badge badge-${p.cat}">${escapeHtml(p.catLabel)}</span>
           <div class="opp-title">${escapeHtml(p.name)}</div>
