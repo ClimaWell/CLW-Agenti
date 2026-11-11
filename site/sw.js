@@ -1,4 +1,4 @@
-const CACHE = 'offerte-agenti-v37';
+const CACHE = 'offerte-agenti-v49';
 const ASSETS = [
   '/',
   '/index.html',
@@ -16,7 +16,10 @@ const ASSETS = [
   '/styles.css',
   '/dense.css',
   '/roles.css',
-  '/data.css',
+  '/commercial-hub/index.html',
+  '/commercial-hub/styles.css',
+  '/commercial-hub/app.js',
+  '/commercial-hub/import-csv.html',
   '/manifest.webmanifest',
   '/favicon.svg'
 ];
