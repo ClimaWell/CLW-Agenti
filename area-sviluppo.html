@@ -1093,9 +1093,11 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
     let showBuilders = true;
     let showDesigners = true;
 
-    // Client-side classification helper (fallback / enricher)
+    // Client-side classification helper (fallback / enricher) with instant memoization
     function classifyCustomer(c) {
+      if (c._classified) return c;
       if (typeof c.isCompany === 'boolean' && c.category && c.promoCluster) {
+        c._classified = true;
         return c;
       }
       const vat = String(c.vat_number || c.vatNumber || c.vat || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -1144,14 +1146,13 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
         promoClusterLabel = 'Capitolati & Cantieri Edili';
       }
 
-      return {
-        ...c,
-        isCompany,
-        category,
-        categoryLabel,
-        promoCluster,
-        promoClusterLabel
-      };
+      c.isCompany = isCompany;
+      c.category = category;
+      c.categoryLabel = categoryLabel;
+      c.promoCluster = promoCluster;
+      c.promoClusterLabel = promoClusterLabel;
+      c._classified = true;
+      return c;
     }
 
     // Geocoded Known City Centers (Toscana & Italia centro)
@@ -1499,9 +1500,13 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       // MarkerCluster group for company clients (Aziende P.IVA)
       companiesClusterGroup = L.markerClusterGroup({
         chunkedLoading: true,
+        chunkInterval: 50,
+        chunkDelay: 10,
         maxClusterRadius: 40,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
+        removeOutsideVisibleBounds: true,
+        animateAddingMarkers: false,
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
           const isLarge = count > 50;
@@ -1517,9 +1522,13 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       // MarkerCluster group for private / individual clients (Privati Occasionali)
       individualsClusterGroup = L.markerClusterGroup({
         chunkedLoading: true,
+        chunkInterval: 50,
+        chunkDelay: 10,
         maxClusterRadius: 40,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
+        removeOutsideVisibleBounds: true,
+        animateAddingMarkers: false,
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
           const isLarge = count > 50;
@@ -1536,23 +1545,61 @@ Clima Toscana Impianti; Via Pisana 120; Scandicci; 055-987654; idraulico"></text
       prospectsLayer = L.layerGroup().addTo(map);
     }
 
-    // Create SVG marker icon
-    function createMarkerIcon(type, iconSymbol) {
-      let bgClass = 'marker-company';
-      if (type === 'individual') bgClass = 'marker-individual';
-      if (type === 'client') bgClass = 'marker-client';
-      if (type === 'idraulico') bgClass = 'marker-plumber';
-      if (type === 'elettricista') bgClass = 'marker-electrician';
-      if (type === 'edile') bgClass = 'marker-builder';
-      if (type === 'termotecnico') bgClass = 'marker-designer';
-
-      return L.divIcon({
+    // Static reusable icons to eliminate 2000+ DOM template allocations
+    const STATIC_ICONS = {
+      company: L.divIcon({
         className: 'custom-div-icon',
-        html: `<div class="custom-marker ${bgClass}" style="width:32px; height:32px; font-size:14px;">${iconSymbol}</div>`,
+        html: '<div class="custom-marker marker-company" style="width:32px; height:32px; font-size:14px;">🏢</div>',
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -16]
-      });
+      }),
+      individual: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-individual" style="width:32px; height:32px; font-size:14px;">👤</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      }),
+      client: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-client" style="width:32px; height:32px; font-size:14px;">🏢</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      }),
+      idraulico: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-plumber" style="width:32px; height:32px; font-size:14px;">🔧</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      }),
+      elettricista: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-electrician" style="width:32px; height:32px; font-size:14px;">⚡</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      }),
+      edile: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-builder" style="width:32px; height:32px; font-size:14px;">🏗️</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      }),
+      termotecnico: L.divIcon({
+        className: 'custom-div-icon',
+        html: '<div class="custom-marker marker-designer" style="width:32px; height:32px; font-size:14px;">📐</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16]
+      })
+    };
+
+    function createMarkerIcon(type, iconSymbol) {
+      return STATIC_ICONS[type] || STATIC_ICONS.company;
     }
 
     // Coda di geocodifica asincrona OSM Nominatim (rispetta la policy di 1 req / 1.2 sec)
