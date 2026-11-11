@@ -262,13 +262,30 @@
       const client = initClient();
       if (client) {
         try {
-          const { data, error } = await client
-            .from('customers')
-            .select('*')
-            .order('name', { ascending: true });
-          if (!error && data && data.length) {
-            setLocalCache('customers', data);
-            return data;
+          // Paginazione a blocchi di 1.000 per bypassare il limite di 1.000 record di Supabase PostgREST
+          let allCust = [];
+          let from = 0;
+          const chunkSize = 1000;
+          const maxLimit = 30000;
+
+          while (from < maxLimit) {
+            const to = from + chunkSize - 1;
+            const { data, error } = await client
+              .from('customers')
+              .select('*')
+              .order('name', { ascending: true })
+              .range(from, to);
+
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allCust.push(...data);
+            if (data.length < chunkSize) break;
+            from += chunkSize;
+          }
+
+          if (allCust.length) {
+            setLocalCache('customers', allCust);
+            return allCust;
           }
         } catch (err) {
           console.warn('[Supabase] Errore lettura clienti:', err.message);
@@ -330,11 +347,12 @@
             .from('agents')
             .select('*')
             .order('name', { ascending: true });
-          if (!error && data && data.length) {
-            // Filtra solo gli agenti attivi: verifica sia la colonna manuale 'attivo' sia 'active'
+          if (!error && Array.isArray(data) && data.length) {
+            // Esclude solo i record tecnici o di servizio non operativi
+            const blacklist = ['NON USARE', 'SENZA AGENTE', 'SENZA NOME', 'CLIMAWELL 2', 'CLIMAWELL SRL', 'DIREZIONE', 'VIA MORELLI', 'VIA DELLA CASELLA', 'VIA COSSERIA', 'VIA XX SETTEMBRE'];
             const activeAgents = data.filter(a => {
-              if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
-              if (a.active === false || a.active === 'false' || a.active === 0) return false;
+              const nameUpper = String(a.name || '').toUpperCase();
+              if (blacklist.some(k => nameUpper.includes(k))) return false;
               return true;
             });
             setLocalCache('agents', activeAgents);
@@ -345,13 +363,7 @@
         }
       }
       const cached = await getLocalCache('agents');
-      if (cached && Array.isArray(cached)) {
-        return cached.filter(a => {
-          if (a.attivo === false || a.attivo === 'false' || a.attivo === 0) return false;
-          if (a.active === false || a.active === 'false' || a.active === 0) return false;
-          return true;
-        });
-      }
+      if (cached && Array.isArray(cached) && cached.length) return cached;
       return [];
     },
 
@@ -459,44 +471,218 @@
     },
 
     /**
-     * Recupera le righe dettagliate di un'offerta o ordine da Supabase
+     * Recupera le righe dettagliate di un'offerta o ordine da Supabase (con fallback su offerta di origine e cache locale)
      */
     async getDocumentLines(documentNumber) {
+      if (!documentNumber) return [];
+      const docNum = String(documentNumber).trim();
       const client = initClient();
-      if (client && documentNumber) {
+
+      if (client) {
         try {
+          // 1. Ricerca diretta per document_number
           const { data, error } = await client
             .from('document_lines')
             .select('*')
-            .eq('document_number', documentNumber)
+            .eq('document_number', docNum)
             .order('line_number', { ascending: true });
           if (!error && data && data.length > 0) return data;
+
+          // 2. Fallback: se è un ordine (ORD-... o OCL-...), prova con il numero dell'offerta di origine (OFF-... / OFC-...)
+          const candidates = new Set();
+          if (/^ORD-/i.test(docNum)) {
+            candidates.add(docNum.replace(/^ORD-/i, 'OFF-'));
+            candidates.add(docNum.replace(/^ORD-/i, 'OFC-'));
+            candidates.add(docNum.replace(/^ORD-/i, ''));
+          } else if (/^OCL-/i.test(docNum)) {
+            candidates.add(docNum.replace(/^OCL-/i, 'OFC-'));
+            candidates.add(docNum.replace(/^OCL-/i, 'OFF-'));
+          }
+
+          // Controlla anche se nelle note della testata è indicato "Convertito da Offerta ..."
+          const { data: docRows } = await client
+            .from('documents')
+            .select('notes')
+            .eq('number', docNum)
+            .limit(1);
+          if (docRows && docRows[0]?.notes) {
+            const m = String(docRows[0].notes).match(/Offerta\s+([A-Z0-9_-]+)/i);
+            if (m && m[1]) candidates.add(m[1].trim());
+          }
+
+          if (candidates.size > 0) {
+            const { data: altData, error: altErr } = await client
+              .from('document_lines')
+              .select('*')
+              .in('document_number', Array.from(candidates))
+              .order('line_number', { ascending: true });
+            if (!altErr && altData && altData.length > 0) return altData;
+          }
         } catch (err) {
           console.warn('[Supabase] Errore document_lines:', err.message);
+        }
+      }
+
+      // 3. Fallback cache locale (localStorage)
+      try {
+        const localLines = localStorage.getItem(`clw_doc_lines_${docNum}`);
+        if (localLines) {
+          const parsed = JSON.parse(localLines);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+        const subRaw = localStorage.getItem(`submission-${docNum}`);
+        if (subRaw) {
+          const sub = JSON.parse(subRaw);
+          if (Array.isArray(sub?.payload?.lines) && sub.payload.lines.length > 0) {
+            return sub.payload.lines.map((l, idx) => ({
+              line_number: idx + 1,
+              product_code: l.code || l.product_code || '',
+              description: l.description || '',
+              quantity: Number(l.quantity || l.qty) || 1,
+              list_price: Number(l.listPrice || l.list_price || l.price) || 0,
+              discount_1: Number(l.discounts?.[0] || l.discount_1) || 0,
+              discount_2: Number(l.discounts?.[1] || l.discount_2) || 0,
+              discount_3: Number(l.discounts?.[2] || l.discount_3) || 0,
+              discount_4: Number(l.discounts?.[3] || l.discount_4) || 0,
+              discount_extra: Number(l.extraDiscount || l.discount_extra || l.extra_discount) || 0,
+              net_price: Number(l.net_price || (l.net && l.quantity ? l.net / l.quantity : l.net)) || 0,
+              total: Number(l.net || l.total) || 0,
+              vat: Number(l.vat) || 22,
+              location: l.location || ''
+            }));
+          }
+        }
+      } catch {}
+
+      return [];
+    },
+
+    /**
+     * Recupera gli ordini da preparare (per il magazziniere) con tutte le righe articolo
+     */
+    async getWarehouseOrders() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data: orders, error } = await client
+            .from('documents')
+            .select('*')
+            .in('document_type', ['OCL', 'ORD'])
+            .in('status', ['Aperto', 'In Attesa', 'In Lavorazione', 'Inviato', 'Approvato', 'In Preparazione', 'Preparato'])
+            .order('created_at', { ascending: false });
+
+          if (!error && Array.isArray(orders) && orders.length > 0) {
+            const orderNums = orders.map(o => o.number).filter(Boolean);
+            const { data: allLines, error: linesErr } = await client
+              .from('document_lines')
+              .select('*')
+              .in('document_number', orderNums)
+              .order('line_number', { ascending: true });
+
+            const lines = (!linesErr && Array.isArray(allLines)) ? allLines : [];
+            const linesByDoc = new Map();
+            for (const l of lines) {
+              const key = String(l.document_number || '').trim();
+              if (!key) continue;
+              if (!linesByDoc.has(key)) linesByDoc.set(key, []);
+              linesByDoc.get(key).push(l);
+            }
+
+            const openOrders = orders.filter(o => {
+              const ev = String(o.evaso || '').trim().toUpperCase();
+              return ev !== 'S' && ev !== 'SI' && ev !== '1';
+            });
+
+            return openOrders.map(ord => {
+              const num = String(ord.number || '').trim();
+              let docLines = linesByDoc.get(num) || [];
+              if (!docLines.length && /^ORD-/i.test(num)) {
+                docLines = linesByDoc.get(num.replace(/^ORD-/i, 'OFF-')) || linesByDoc.get(num.replace(/^ORD-/i, 'OFC-')) || [];
+              }
+              if (!docLines.length && ord.notes) {
+                const m = String(ord.notes).match(/Offerta\s+([A-Z0-9_-]+)/i);
+                if (m && m[1]) docLines = linesByDoc.get(m[1].trim()) || [];
+              }
+
+              // Filtra solo le righe ancora da evadere/processare (Evaso = 'N')
+              const unfulfilledLines = docLines.filter(l => {
+                const evRiga = String(l.evaso || '').trim().toUpperCase();
+                const qty = Number(l.quantity || 0);
+                const picked = Number(l.picked_qty || 0);
+                return evRiga !== 'S' && evRiga !== 'SI' && evRiga !== '1' && (!l.is_completed || (qty > 0 && picked < qty));
+              });
+
+              return {
+                ...ord,
+                document_lines: unfulfilledLines,
+                lines: unfulfilledLines
+              };
+            }).filter(ord => ord.document_lines && ord.document_lines.length > 0);
+          }
+        } catch (err) {
+          console.warn('[Supabase] Errore ordini magazzino:', err.message);
         }
       }
       return [];
     },
 
     /**
-     * Recupera gli ordini da preparare (per il magazziniere)
+     * Passa un ordine aperto al magazzino per la preparazione (Picking)
      */
-    async getWarehouseOrders() {
+    async assignOrderToWarehouse(orderNumber, operatorName = 'Magazziniere') {
       const client = initClient();
       if (client) {
-        try {
-          const { data, error } = await client
-            .from('documents')
-            .select('*, document_lines(*)')
-            .eq('document_type', 'OCL')
-            .in('status', ['Inviato', 'In Preparazione', 'Preparato'])
-            .order('document_date', { ascending: true });
-          if (!error && data) return data;
-        } catch (err) {
-          console.warn('[Supabase] Errore ordini magazzino:', err.message);
-        }
+        const { data, error } = await client
+          .from('documents')
+          .update({
+            status: 'In Preparazione',
+            picked_by: operatorName,
+            updated_at: new Date().toISOString()
+          })
+          .eq('number', orderNumber)
+          .select();
+        if (error) throw error;
+        return data && data[0] ? data[0] : { ok: true, number: orderNumber, status: 'In Preparazione' };
       }
-      return [];
+      return { ok: true, number: orderNumber, status: 'In Preparazione', localOnly: true };
+    },
+
+    /**
+     * Segna un ordine come Preparato al 100% per spedizione/DDT
+     */
+    async completeWarehousePicking(orderNumber, pickedLines = [], operatorName = 'Magazziniere') {
+      const client = initClient();
+      if (client) {
+        const { data: docData, error: docErr } = await client
+          .from('documents')
+          .update({
+            status: 'Preparato',
+            picked_by: operatorName,
+            picked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('number', orderNumber)
+          .select();
+        if (docErr) throw docErr;
+
+        if (Array.isArray(pickedLines) && pickedLines.length > 0) {
+          for (const l of pickedLines) {
+            if (l.id) {
+              await client
+                .from('document_lines')
+                .update({
+                  picked_qty: Number(l.picked_qty) || Number(l.quantity) || 0,
+                  is_completed: Boolean(l.is_completed),
+                  picked_by: operatorName,
+                  picked_at: new Date().toISOString()
+                })
+                .eq('id', l.id);
+            }
+          }
+        }
+        return { ok: true, orderNumber, status: 'Preparato' };
+      }
+      return { ok: true, orderNumber, status: 'Preparato', localOnly: true };
     },
 
     /**
@@ -690,8 +876,11 @@
         const d2 = Number(l.discounts?.[1] || l.discount_2) || 0;
         const d3 = Number(l.discounts?.[2] || l.discount_3) || 0;
         const d4 = Number(l.discounts?.[3] || l.discount_4) || 0;
-        const tot = Number(l.net || l.total || (q * price * (1 - d1/100) * (1 - d2/100))) || 0;
-        const netP = q > 0 ? tot / q : price;
+        const dExtra = Number(l.extraDiscount || l.discount_extra || l.extra_discount) || 0;
+        const discMult = (1 - d1/100) * (1 - d2/100) * (1 - d3/100) * (1 - d4/100) * (1 - dExtra/100);
+        const markupMult = 1 + (Number(l.markup) || 0) / 100;
+        const tot = Number(l.net || l.total || (q * price * discMult * markupMult)) || 0;
+        const netP = q > 0 ? tot / q : (price * discMult * markupMult);
 
         return {
           document_number: number,
@@ -707,11 +896,18 @@
           discount_2: d2,
           discount_3: d3,
           discount_4: d4,
+          discount_extra: dExtra,
           net_price: Math.round(netP * 10000) / 10000,
           vat: Number(prod.vat || l.vat) || 22,
           total: Math.round(tot * 100) / 100
         };
       });
+
+      try {
+        if (formattedLines.length > 0 && number) {
+          localStorage.setItem(`clw_doc_lines_${number}`, JSON.stringify(formattedLines));
+        }
+      } catch {}
 
       if (client) {
         try {
@@ -720,7 +916,13 @@
 
           if (formattedLines.length > 0) {
             await client.from('document_lines').delete().eq('document_number', number);
-            const { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            let { error: linesErr } = await client.from('document_lines').insert(formattedLines);
+            if (linesErr) {
+              // Fallback progressivo se alcune colonne opzionali non sono presenti nel database Supabase
+              const safeLines = formattedLines.map(({ discount_extra, um, vat, ...rest }) => rest);
+              const retry = await client.from('document_lines').insert(safeLines);
+              linesErr = retry.error;
+            }
             if (linesErr) console.warn('[Supabase] Errore inserimento righe documento:', linesErr);
           }
         } catch (e) {
@@ -949,6 +1151,219 @@
         console.warn('Errore checkPlusSyncStatus:', e);
       }
       return null;
+    },
+
+    // --- COMMERCIAL HUB: CRM, CONSENSI & OPPORTUNITÀ ---
+    async getHubCustomers() {
+      const client = initClient();
+      if (client) {
+        try {
+          const [hubRes, custList] = await Promise.all([
+            client.from('hub_customers').select('*').order('business_name', { ascending: true }),
+            this.getCustomers()
+          ]);
+
+          const hubList = hubRes.data || [];
+          const hubMap = new Map(hubList.map(h => [String(h.customer_code).trim(), h]));
+          const merged = [];
+          const toInsertInHub = [];
+
+          // 1. Includi tutti i clienti presenti in hub_customers arricchiti da customers
+          for (const h of hubList) {
+            const cust = custList.find(c => String(c.code).trim() === String(h.customer_code).trim()) || {};
+            merged.push({
+              ...h,
+              activity: h.activity || cust.activity || '',
+              agent_code: h.assigned_agent_code || cust.agent_code || '',
+              vat_number: h.vat_number || cust.vat_number || '',
+              fiscal_code: h.fiscal_code || cust.tax_code || '',
+              phone: h.phone || cust.phone || '',
+              mobile_whatsapp: h.mobile_whatsapp || cust.mobile || cust.phone || '',
+              email: h.email || cust.email || ''
+            });
+          }
+
+          // 2. Includi nuovi clienti presenti in customers ma non ancora in hub_customers (es. creati su Plus 2000)
+          for (const c of custList) {
+            const codeStr = String(c.code || '').trim();
+            if (codeStr && !hubMap.has(codeStr)) {
+              const newHubCust = {
+                id: c.id || `CUST-${codeStr}`,
+                customer_code: codeStr,
+                business_name: c.name || 'Cliente',
+                city: c.city || '',
+                province: c.province || '',
+                address: c.address || '',
+                postal_code: c.postal_code || '',
+                phone: c.phone || '',
+                mobile_whatsapp: c.mobile || c.phone || '',
+                email: c.email || '',
+                vat_number: c.vat_number || '',
+                fiscal_code: c.tax_code || '',
+                assigned_agent_code: c.agent_code || '',
+                agent_code: c.agent_code || '',
+                activity: c.activity || '',
+                consent_wa: 'opt_in',
+                consent_email: 'opt_in'
+              };
+              merged.push(newHubCust);
+              toInsertInHub.push({
+                customer_code: codeStr,
+                business_name: c.name || 'Cliente',
+                city: c.city || '',
+                province: c.province || '',
+                address: c.address || '',
+                postal_code: c.postal_code || '',
+                phone: c.phone || '',
+                mobile_whatsapp: c.mobile || c.phone || '',
+                email: c.email || '',
+                vat_number: c.vat_number || '',
+                fiscal_code: c.tax_code || '',
+                assigned_agent_code: c.agent_code || '',
+                consent_wa: 'opt_in',
+                consent_email: 'opt_in'
+              });
+            }
+          }
+
+          // Salva in background su hub_customers i nuovi clienti per persistenza consensi
+          if (toInsertInHub.length > 0) {
+            client.from('hub_customers').upsert(toInsertInHub, { onConflict: 'customer_code' }).then().catch(() => {});
+          }
+
+          if (merged.length > 0) {
+            return merged.sort((a, b) => (a.business_name || '').localeCompare(b.business_name || ''));
+          }
+        } catch (e) {
+          console.warn('[Hub] Errore lettura hub_customers, fallback a customers:', e);
+        }
+      }
+      return this.getCustomers();
+    },
+
+    async getHubOpportunities() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('hub_commercial_opportunities')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn('[Hub] Errore opportunita:', e);
+        }
+      }
+      return [];
+    },
+
+    async saveHubOpportunity(opp) {
+      const client = initClient();
+      if (client) {
+        const payload = {
+          ...opp,
+          updated_at: new Date().toISOString()
+        };
+        const { data, error } = await client
+          .from('hub_commercial_opportunities')
+          .upsert(payload)
+          .select();
+        if (error) throw error;
+        return data && data[0] ? data[0] : payload;
+      }
+      return opp;
+    },
+
+    async updateHubOpportunityStage(id, stageCode) {
+      const client = initClient();
+      if (client) {
+        const { data, error } = await client
+          .from('hub_commercial_opportunities')
+          .update({ stage_code: stageCode, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select();
+        if (error) throw error;
+        return data;
+      }
+      return { ok: true };
+    },
+
+    async saveHubConsent(customerId, channel, status, source = 'manuale') {
+      const client = initClient();
+      if (client) {
+        const updateField = channel === 'whatsapp' ? { consent_wa: status } : { consent_email: status };
+        await client.from('hub_customers').update(updateField).eq('id', customerId);
+
+        const { data, error } = await client.from('hub_consent_records').insert([{
+          customer_id: customerId,
+          channel: channel,
+          status: status,
+          source: source,
+          consented_at: status === 'opt_in' ? new Date().toISOString() : null,
+          revoked_at: status === 'opt_out' ? new Date().toISOString() : null
+        }]);
+        if (error) throw error;
+        return data;
+      }
+      return { ok: true };
+    },
+
+    async logHubWhatsAppMessage({ customerId, recipientPhone, templateName, messageText, status = 'inviato' }) {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_whatsapp_messages').insert([{
+            customer_id: customerId || null,
+            recipient_phone: recipientPhone,
+            template_name: templateName || 'personalizzato',
+            message_text: messageText,
+            status: status,
+            sent_at: new Date().toISOString()
+          }]).select();
+          if (error) console.warn('[Hub] Errore salvataggio log WhatsApp:', error);
+          return data;
+        } catch (e) {
+          console.warn('[Hub] Eccezione log WhatsApp:', e);
+        }
+      }
+      return { ok: true, localOnly: true };
+    },
+
+    async createHubCampaign(campaign) {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_campaigns').insert([{
+            campaign_type: campaign.campaign_type || 'email',
+            name: campaign.name || 'Campagna Senza Nome',
+            subject: campaign.subject || '',
+            content: campaign.content || '',
+            target_audience: campaign.target_audience || 'ALL',
+            status: campaign.status || 'completata',
+            sent_count: campaign.sent_count || 0,
+            failed_count: campaign.failed_count || 0,
+            sent_at: new Date().toISOString()
+          }]).select();
+          if (error) console.warn('[Hub] Errore inserimento hub_campaigns:', error);
+          return data && data[0] ? data[0] : campaign;
+        } catch (e) {
+          console.warn('[Hub] Eccezione createHubCampaign:', e);
+        }
+      }
+      return campaign;
+    },
+
+    async getHubCampaigns() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_campaigns').select('*').order('created_at', { ascending: false }).limit(20);
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn('[Hub] Eccezione getHubCampaigns:', e);
+        }
+      }
+      return [];
     }
   };
 

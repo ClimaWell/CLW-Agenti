@@ -1,0 +1,19 @@
+# Dipendenze
+node_modules/
+.npm
+
+# Build & Cache
+.netlify/
+dist/
+.cache/
+
+# File di sistema e log
+*.log
+.DS_Store
+Thumbs.db
+
+# Segreti ed env
+.env
+*.env
+*.env.*
+*.local
