@@ -2511,3 +2511,193 @@ body {
   color: #64748b;
   margin: 2px 0 0 0;
 }
+
+/* Vetrina Manager 2.0 Tabs & Tables */
+.vetrina-nav-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 14px;
+}
+.vetrina-tab-btn {
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.vetrina-tab-btn:hover {
+  color: #0284c7;
+}
+.vetrina-tab-btn.active {
+  color: #0284c7;
+  border-bottom-color: #0284c7;
+}
+.vetrina-tab-panel {
+  display: none;
+}
+.vetrina-tab-panel.active {
+  display: block;
+}
+.vetrina-table-container {
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.vetrina-edit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.vetrina-edit-table th {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 10px 8px;
+  text-align: left;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.vetrina-edit-table td {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+.vetrina-edit-table tr:hover {
+  background: #f8fafc;
+}
+.vetrina-input-title {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+.vetrina-input-price {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #059669;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #059669;
+  background: #ecfdf5;
+  text-align: right;
+}
+.vetrina-input-listprice {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #64748b;
+  text-align: right;
+}
+.vetrina-input-stock {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  text-align: center;
+}
+.catalog-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  margin-top: 12px;
+  padding: 4px;
+}
+.catalog-result-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.catalog-result-card:hover {
+  border-color: #0284c7;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.catalog-card-thumb {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  background: #f1f5f9;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.catalog-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-card-code {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0284c7;
+  font-family: monospace;
+}
+.catalog-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.catalog-card-price {
+  font-size: 0.78rem;
+  color: #059669;
+  font-weight: 700;
+}
+.btn-add-to-top {
+  padding: 6px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-add-to-top:hover {
+  background: #0369a1;
+}
+.btn-add-to-top.already-added {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: default;
+}
+.btn-move-order {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.btn-move-order:hover {
+  background: #e2e8f0;
+}

@@ -218,7 +218,7 @@
         <button class="cat-pill active" data-cat="TOP10">⭐ Top 10 in Vetrina <span class="pill-count" id="countTop10">10</span></button>
         <button class="cat-pill" data-cat="CLIMA">❄️ Climatizzatori</button>
         <button class="cat-pill" data-cat="POMPE">🔥 Pompe di Calore</button>
-        <button class="cat-pill" data-cat="2B">🚿 Box Doccia &amp; 2B</button>
+        <button class="cat-pill" data-cat="2B">🚿 Bagno &amp; Accessori</button>
         <button class="cat-pill" data-cat="STOCK">🟢 Pronta Consegna</button>
         <button class="cat-pill" data-cat="ALL">📦 Tutto il Listino</button>
       </div>
@@ -552,66 +552,131 @@
   <!-- ======================================================================
        MODAL 2: GESTIONE VETRINA TOP 10 & SEO (ADMIN / AGENTE)
        ====================================================================== -->
+    <!-- ======================================================================
+       MODAL 2: GESTIONE VETRINA ARTICOLI & PREZZI E-COM (MIGLIORATO E SEMPLICE)
+       ====================================================================== -->
   <div class="ecom-modal" id="vetrinaManagerModal">
-    <div class="ecom-modal-content vetrina-modal-wide">
+    <div class="ecom-modal-content vetrina-modal-wide" style="max-width:1050px;">
       <div class="modal-header">
         <div>
-          <span class="modal-badge-b2b">CONFIGURATORE VETRINA &amp; SEO GOOGLE</span>
-          <h3>⚙️ Gestione Vetrina Top 10 Articoli, Foto &amp; Schede SEO</h3>
-          <span class="prod-code-sub">Scegli fino a 10 articoli acquistabili, imposta l'URL della foto reale e ottimizza i titoli per i motori di ricerca</span>
+          <span class="modal-badge-b2b">CONFIGURATORE VETRINA &amp; PREZZI E-COMMERCE</span>
+          <h3>⚙️ Gestione Vetrina Articoli, Prezzi &amp; Schede SEO</h3>
+          <span class="prod-code-sub">Modifica rapidamente prezzi, titoli e foto dei prodotti in vetrina, oppure cercane di nuovi nel listino</span>
         </div>
         <button class="btn-close-modal" id="btnCloseVetrinaManager">✕</button>
       </div>
 
       <div class="modal-body">
-        <div class="manager-info-banner">
-          <div>
-            <strong>💡 Come funziona la selezione e da dove vengono prese le foto:</strong>
-            <ul style="margin:6px 0 0 18px; font-size:0.8rem; color:#334155;">
-              <li><strong>Selezione Articoli (Max 10):</strong> Di default il listino Supabase (`products`) contiene centinaia di codici tecnici. Qui sotto puoi scegliere i <strong>10 articoli in evidenza</strong> (campo `isFeaturedTop10`) che compaiono subito in vetrina.</li>
-              <li><strong>Origine Foto (`imageUrl`):</strong> Il sistema legge prima l'URL immagine personalizzato che inserisci qui sotto (o il campo `image_url` su Supabase). Se un articolo non ha ancora una foto esterna, genera automaticamente un'illustrazione vettoriale dedicata per la sua categoria.</li>
-              <li><strong>SEO Automatica:</strong> Ogni modifica ai 10 articoli aggiorna istantaneamente i dati strutturati <code>Schema.org/Product</code> (Google Merchant Listings) della pagina.</li>
-            </ul>
+        <!-- TOP TOOLBAR CON TABS -->
+        <div class="vetrina-nav-tabs">
+          <button type="button" class="vetrina-tab-btn active" id="tabVetrinaCurrent">
+            📋 Articoli in Vetrina (<span id="managerTop10Counter">12 / 12</span>)
+          </button>
+          <button type="button" class="vetrina-tab-btn" id="tabVetrinaSearch">
+            🔍 Cerca e Aggiungi dal Listino Generale
+          </button>
+          <button type="button" class="vetrina-tab-btn" id="tabVetrinaManual">
+            ➕ Aggiungi Articolo al Volo
+          </button>
+        </div>
+
+        <!-- PANNELLO 1: TABELLA ARTICOLI IN VETRINA (MODIFICA RAPIDA PREZZI E TITOLI) -->
+        <div id="panelVetrinaCurrent" class="vetrina-tab-panel active">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <p style="font-size:0.82rem; color:#64748b; margin:0;">
+              💡 <strong>Modifica rapida:</strong> modifica il prezzo netto, il listino o il titolo direttamente nelle caselle qui sotto. Usa le frecce per cambiare l'ordine in vetrina.
+            </p>
+          </div>
+
+          <div class="vetrina-table-container">
+            <table class="vetrina-edit-table">
+              <thead>
+                <tr>
+                  <th style="width:55px; text-align:center;">Ordine</th>
+                  <th style="width:65px; text-align:center;">Foto</th>
+                  <th style="width:120px;">Codice</th>
+                  <th>Titolo Commerciale in Vetrina</th>
+                  <th style="width:130px; text-align:right;">Prezzo Netto (€)</th>
+                  <th style="width:115px; text-align:right;">Listino (€)</th>
+                  <th style="width:80px; text-align:center;">Pezzi</th>
+                  <th style="width:70px; text-align:center;">Azione</th>
+                </tr>
+              </thead>
+              <tbody id="managerTop10TableBody">
+                <!-- Popolato dinamicamente da ecom.js -->
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div class="manager-add-bar">
-          <div style="flex:1;">
-            <label style="font-size:0.75rem; font-weight:700; color:#0f172a; display:block; margin-bottom:4px;">➕ Aggiungi o sostituisci un articolo cercando nel listino completo (Supabase / Plus2000):</label>
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="managerCatalogSearch" placeholder="Digita codice o descrizione dal listino generale..." style="flex:1; padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
-              <select id="managerCatalogSelect" style="flex:1.4; padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem;">
-                <option value="">-- Seleziona un articolo dal catalogo per aggiungerlo ai Top 10 --</option>
-              </select>
-              <button type="button" class="btn-manager-add" id="btnAddProductToTop10">+ Aggiungi ai Top 10</button>
+        <!-- PANNELLO 2: RICERCA NEL LISTINO COMPLETO PLUS2000 / SUPABASE -->
+        <div id="panelVetrinaSearch" class="vetrina-tab-panel hidden">
+          <div style="margin-bottom:10px;">
+            <input type="text" id="managerCatalogLiveSearch" placeholder="🔍 Digita codice, descrizione o marca dal listino completo (es. clima, pompa, 12000)..." style="width:100%; box-sizing:border-box; padding:10px 14px; font-size:0.9rem; border:2px solid #bae6fd; border-radius:8px; outline:none;">
+          </div>
+          <div style="font-size:0.75rem; color:#64748b; margin-bottom:8px;">Clicca su <strong>[ + Metti in Vetrina ]</strong> per inserire il prodotto tra i primi mostrati:</div>
+          <div id="catalogSearchResultsGrid" class="catalog-results-grid">
+            <!-- Risultati della ricerca generati al volo -->
+          </div>
+        </div>
+
+        <!-- PANNELLO 3: AGGIUNTA ARTICOLO MANUALE AL VOLO -->
+        <div id="panelVetrinaManual" class="vetrina-tab-panel hidden">
+          <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:16px;">
+            <h4 style="margin-bottom:12px; font-size:0.95rem; color:#0f172a;">Inserisci un nuovo articolo direttamente in vetrina:</h4>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">
+              <div>
+                <label style="font-size:0.75rem; font-weight:700; color:#334155;">Codice Articolo (SKU): <span class="req">*</span></label>
+                <input type="text" id="manualCode" placeholder="Es. CW-PROMO-01" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+              </div>
+              <div>
+                <label style="font-size:0.75rem; font-weight:700; color:#334155;">Prezzo Netto Vetrina (€): <span class="req">*</span></label>
+                <input type="number" step="0.01" id="manualPrice" placeholder="Es. 450.00" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #059669; border-radius:6px; font-weight:700; color:#059669; background:#ecfdf5;">
+              </div>
+              <div>
+                <label style="font-size:0.75rem; font-weight:700; color:#334155;">Prezzo Listino (€):</label>
+                <input type="number" step="0.01" id="manualListPrice" placeholder="Es. 650.00" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+              </div>
+              <div>
+                <label style="font-size:0.75rem; font-weight:700; color:#334155;">Giacenza Pezzi:</label>
+                <input type="number" id="manualStock" value="10" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+              </div>
             </div>
-          </div>
-          <div class="manager-counter-badge">
-            <span>Articoli in Vetrina:</span>
-            <strong id="managerTop10Counter">10 / 10</strong>
+            <div style="margin-bottom:12px;">
+              <label style="font-size:0.75rem; font-weight:700; color:#334155;">Titolo Commerciale in Vetrina: <span class="req">*</span></label>
+              <input type="text" id="manualTitle" placeholder="Es. Climatizzatore Inverter Pompa di Calore Classe A+++" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="font-size:0.75rem; font-weight:700; color:#334155;">URL Foto Prodotto (opzionale):</label>
+              <input type="url" id="manualImageUrl" placeholder="https://.../foto-prodotto.jpg (lascia vuoto per grafica automatica)" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e1; border-radius:6px;">
+            </div>
+            <button type="button" id="btnSubmitManualProduct" class="btn-manager-add" style="padding:10px 18px; font-size:0.88rem; background:#0284c7; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer;">
+              ➕ Aggiungi Questo Articolo alla Vetrina
+            </button>
           </div>
         </div>
 
-        <div id="managerTop10List" class="manager-top10-list"></div>
-
-        <details class="seo-jsonld-Collapse" style="margin-top:16px;">
-          <summary style="cursor:pointer; font-weight:700; font-size:0.82rem; color:#0369a1;">🔍 Ispeziona Codice JSON-LD (Google Merchant Listings &amp; Rich Snippets) generato in automatico</summary>
-          <pre id="seoJsonLdPreviewBox" style="background:#0f172a; color:#38bdf8; padding:12px; border-radius:8px; font-size:0.72rem; overflow-x:auto; max-height:220px; margin-top:8px;"></pre>
+        <details class="seo-jsonld-Collapse" style="margin-top:14px;">
+          <summary style="cursor:pointer; font-weight:700; font-size:0.82rem; color:#0369a1;">🔍 Ispeziona Dati Strutturati Schema.org (Google Merchant &amp; SEO)</summary>
+          <pre id="seoJsonLdPreviewBox" style="background:#0f172a; color:#38bdf8; padding:12px; border-radius:8px; font-size:0.72rem; overflow-x:auto; max-height:180px; margin-top:8px;"></pre>
         </details>
 
-        <div class="manager-footer-actions">
-          <button type="button" class="btn-reset-top10" id="btnResetDefaultTop10">↺ Ripristina Top 10 Consigliati</button>
+        <!-- FOOTER AZIONI -->
+        <div class="manager-footer-actions" style="margin-top:16px; padding-top:12px; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <button type="button" class="btn-reset-top10" id="btnResetDefaultTop10" style="padding:8px 14px; font-size:0.8rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer;">
+            ↺ Ripristina Catalogo Predefinito (Hermann, Clima, Pompe)
+          </button>
           <div style="display:flex; gap:10px;">
-            <button type="button" class="btn-save-top10" id="btnSaveTop10Config">💾 Salva Vetrina Top 10 &amp; Aggiorna SEO</button>
+            <button type="button" class="btn-save-top10" id="btnSaveTop10Config" style="padding:10px 20px; font-size:0.92rem; font-weight:800; background:#059669; color:#fff; border:none; border-radius:8px; cursor:pointer;">
+              💾 Salva Vetrina &amp; Aggiorna Prezzi Online
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ======================================================================
-       MODAL 3: CARRELLO MULTI-PRODOTTO & CHECKOUT INTELLIGENTE (B2B vs PRIVATI)
-       ====================================================================== -->
+  =================== -->
   <div class="ecom-modal" id="orderModal">
     <div class="ecom-modal-content" style="max-width:660px;">
       <div class="modal-header">

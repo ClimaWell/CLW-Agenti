@@ -2686,6 +2686,60 @@
       showToast(`✅ Articolo ${found.code} aggiunto alla Vetrina Top 12!`);
     });
 
+    
+    // Nuove Tab Vetrina Manager 2.0
+    document.getElementById('tabVetrinaCurrent')?.addEventListener('click', () => switchVetrinaTab('current'));
+    document.getElementById('tabVetrinaSearch')?.addEventListener('click', () => switchVetrinaTab('search'));
+    document.getElementById('tabVetrinaManual')?.addEventListener('click', () => switchVetrinaTab('manual'));
+    
+    // Ricerca live nel catalogo
+    document.getElementById('managerCatalogLiveSearch')?.addEventListener('input', e => {
+      renderCatalogSearchResults(e.target.value);
+    });
+
+    // Inserimento manuale articolo
+    document.getElementById('btnSubmitManualProduct')?.addEventListener('click', () => {
+      const code = (document.getElementById('manualCode')?.value || '').trim().toUpperCase();
+      const title = (document.getElementById('manualTitle')?.value || '').trim();
+      const price = parseFloat(document.getElementById('manualPrice')?.value || 0);
+      const listPrice = parseFloat(document.getElementById('manualListPrice')?.value || price * 1.3);
+      const stock = parseInt(document.getElementById('manualStock')?.value || 10, 10);
+      const imageUrl = (document.getElementById('manualImageUrl')?.value || '').trim();
+
+      if (!code || !title || isNaN(price) || price <= 0) {
+        showToast('⚠️ Inserisci almeno Codice, Titolo e Prezzo valido!');
+        return;
+      }
+      if (EcomState.top10Config.length >= 12) {
+        showToast('⚠️ La vetrina contiene già 12 articoli!');
+        return;
+      }
+
+      EcomState.top10Config.push({
+        code,
+        seoTitle: title,
+        seoDescription: title,
+        highlights: ['Garanzia Ufficiale Italia', 'Pronta Consegna magazzino Firenze'],
+        badge: '⭐ Speciale Vetrina',
+        brand: 'CLIMAWELL',
+        family: 'CLIMA',
+        price,
+        listPrice,
+        stock,
+        imageUrl
+      });
+
+      // Pulisci campi
+      document.getElementById('manualCode').value = '';
+      document.getElementById('manualTitle').value = '';
+      document.getElementById('manualPrice').value = '';
+      document.getElementById('manualListPrice').value = '';
+      document.getElementById('manualImageUrl').value = '';
+
+      switchVetrinaTab('current');
+      showToast(`✅ Articolo "${code}" inserito con successo nei Top in Vetrina!`);
+    });
+
     document.getElementById('btnResetDefaultTop10')?.addEventListener('click', () => {
       EcomState.top10Config = JSON.parse(JSON.stringify(DEFAULT_TOP10_CONFIG));
       saveTop10ConfigToStorage();
