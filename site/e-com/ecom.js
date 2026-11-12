@@ -6,19 +6,19 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY_TOP10 = 'clw_ecom_top10_seo_v1';
+  const STORAGE_KEY_TOP10 = 'clw_ecom_top10_seo_v2';
   const STORAGE_KEY_CART = 'clw_ecom_cart_v1';
   const STORAGE_KEY_PAY_RULES = 'clw_ecom_payment_rules_v1';
 
   // Configurazione Predefinita dei 10 Articoli di Punta per Acquisto Diretto & SEO
-  const DEFAULT_TOP10_CONFIG = [
+    const DEFAULT_TOP10_CONFIG = [
     {
-      code: 'MSZ-AP35',
-      seoTitle: 'Climatizzatore Parete Mitsubishi Electric MSZ-AP35VGK 12000 BTU Inverter R32 Wi-Fi A+++',
-      seoDescription: 'Monosplit inverter pompa di calore 12000 BTU con Wi-Fi MELCloud integrato, gas ecologico R32 e silenziosità 19 dB(A).',
-      highlights: ['Classe energetica A+++ / A++', 'Wi-Fi MELCloud integrato di serie', 'Unità interna + esterna completa'],
+      code: 'CW-CLIMA-12',
+      seoTitle: 'Climatizzatore Parete Monosplit 12000 BTU Inverter R32 Wi-Fi Classe A+++',
+      seoDescription: 'Monosplit inverter pompa di calore 12000 BTU con modulo Wi-Fi integrato, gas ecologico R32 e massima silenziosità operativa 19 dB(A).',
+      highlights: ['Classe energetica A+++ / A++', 'Wi-Fi integrato per controllo da smartphone', 'Unità interna + esterna completa'],
       badge: '🔥 #1 Più Venduto',
-      brand: 'MITSUBISHI',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 680.00,
       listPrice: 910.00,
@@ -26,25 +26,25 @@
       imageUrl: ''
     },
     {
-      code: '780824',
-      seoTitle: 'Box Doccia Angolare 2B Serie HIT Cristallo Trasparente 6mm Profilo Bianco (68/78 x 82/92 cm)',
-      seoDescription: 'Cabina box doccia angolare reversibile 2B con vetro temperato di sicurezza 6 mm, chiusura magnetica e sgancio rapido ante.',
+      code: 'CW-CAB-8090',
+      seoTitle: 'Cabina Box Doccia Angolare Cristallo Trasparente 6mm Reversibile (68/78 x 82/92 cm)',
+      seoDescription: 'Box doccia angolare reversibile con cristallo temperato di sicurezza 6 mm, chiusura magnetica e sgancio rapido ante.',
       highlights: ['Cristallo temperato 6 mm certificato', 'Sgancio rapido per pulizia facile', 'Estensibilità 68-78 x 82-92 cm'],
-      badge: '🚿 Promo Bagno 2B',
-      brand: '2B',
-      family: '2B',
+      badge: '🚿 Linea Bagno',
+      brand: 'CLIMAWELL',
+      family: 'ARREDO',
       price: 300.00,
       listPrice: 420.00,
       stock: 8,
-      imageUrl: 'https://www.boxdocce2b.com/wp-content/uploads/2021/03/tre-lati.png'
+      imageUrl: ''
     },
     {
-      code: 'ALTHERMA-16',
-      seoTitle: 'Pompa di Calore Idronica Daikin Altherma 3 M Monoblocco 16 kW R32 Trifase A+++',
-      seoDescription: 'Pompa di calore aria-acqua monoblocco Daikin 16 kW ad altissima efficienza per riscaldamento, raffrescamento e acqua calda sanitaria.',
-      highlights: ['Idonea Conto Termico & Ecobonus', 'Monoblocco R32 senza unità interna', 'Mandata acqua fino a 60°C'],
+      code: 'CW-PDC-16M',
+      seoTitle: 'Pompa di Calore Idronica Aria-Acqua Monoblocco 16 kW R32 Trifase A+++',
+      seoDescription: 'Pompa di calore monoblocco 16 kW ad altissima efficienza per riscaldamento, raffrescamento e acqua calda sanitaria.',
+      highlights: ['Idonea Conto Termico & Ecobonus', 'Monoblocco R32 ad alta efficienza', 'Mandata acqua fino a 60°C'],
       badge: '💎 Alta Efficienza',
-      brand: 'DAIKIN',
+      brand: 'CLIMAWELL',
       family: 'POMPE',
       price: 4320.00,
       listPrice: 5600.00,
@@ -52,12 +52,12 @@
       imageUrl: ''
     },
     {
-      code: 'FTXF35D',
-      seoTitle: 'Climatizzatore Monosplit Daikin Sensira FTXF35D 12000 BTU Inverter R32 Pompa di Calore',
-      seoDescription: 'Condizionatore Daikin Sensira 12000 BTU (3,5 kW) in pompa di calore con compressore Swing ad alta affidabilità e filtro purificatore.',
-      highlights: ['Qualità originale Daikin Italia', 'Funzione Deumidificazione & Eco', 'Ideale per ambienti fino a 35-40 mq'],
+      code: 'CW-CLIMA-ECO12',
+      seoTitle: 'Climatizzatore Monosplit Inverter 12000 BTU Pompa di Calore R32 Silenzioso',
+      seoDescription: 'Condizionatore 12000 BTU (3,5 kW) in pompa di calore con compressore inverter ad alta affidabilità e filtro purificatore.',
+      highlights: ['Elevata efficienza energetica', 'Funzione Deumidificazione & Notturna', 'Ideale per ambienti fino a 35-40 mq'],
       badge: '⚡ Pronta Consegna',
-      brand: 'DAIKIN',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 540.00,
       listPrice: 740.00,
@@ -65,12 +65,12 @@
       imageUrl: ''
     },
     {
-      code: 'CYAL250',
-      seoTitle: 'Barriera d\'Aria Industriale e Commerciale a Soffitto 29 kW Alta Prevalenza',
-      seoDescription: 'Barriera a lama d\'aria professionale 29 kW per ingressi commerciali, negozi e capannoni con abbattimento dispersioni termiche.',
+      code: 'CW-BAR-29K',
+      seoTitle: "Barriera d'Aria Industriale e Commerciale a Soffitto 29 kW Alta Prevalenza",
+      seoDescription: "Barriera a lama d'aria professionale 29 kW per ingressi commerciali, negozi e capannoni con abbattimento dispersioni termiche.",
       highlights: ['Potenza termica 29 kW alta prevalenza', 'Protezione antipolvere e isolamento', 'Installazione pensile o incasso'],
       badge: '🏢 Linea Business',
-      brand: 'DAIKIN',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 1850.00,
       listPrice: 2400.00,
@@ -78,12 +78,12 @@
       imageUrl: ''
     },
     {
-      code: 'AR12TXFCAWKNEU',
-      seoTitle: 'Climatizzatore Samsung WindFree Avant 12000 BTU R32 Wi-Fi SmartThings A+++',
-      seoDescription: 'Condizionatore Samsung WindFree con 23.000 microfori per diffusione aria senza getto diretto, AI Auto Cooling e filtro Tri-Care.',
-      highlights: ['Tecnologia brevettata Zero Vento Diretto', 'Controllo vocale e App SmartThings', 'Classe energetica A+++'],
-      badge: '❄️ Comfort Zero Aria Diretta',
-      brand: 'SAMSUNG',
+      code: 'CW-CLIMA-COMF12',
+      seoTitle: 'Climatizzatore Inverter 12000 BTU R32 a Diffusione Delicata Wi-Fi A+++',
+      seoDescription: 'Condizionatore con tecnologia a microfori per diffusione aria omogenea senza getto diretto, controllo smart e filtro antibatterico.',
+      highlights: ["Comfort elevato senza getto d'aria diretto", 'Controllo vocale e App Smart', 'Classe energetica A+++'],
+      badge: '❄️ Comfort Silenzioso',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 620.00,
       listPrice: 850.00,
@@ -91,12 +91,12 @@
       imageUrl: ''
     },
     {
-      code: 'NUOS-EVO-110',
-      seoTitle: 'Scaldacqua a Pompa di Calore Murale 110 Litri Monoblocco Classe A+ R134a',
+      code: 'CW-BOILER-PDC110',
+      seoTitle: 'Scaldacqua a Pompa di Calore Murale 110 Litri Monoblocco Classe A+',
       seoDescription: 'Boiler scaldabagno in pompa di calore da 110 litri ad alto risparmio energetico (-70% consumi elettrici rispetto a boiler tradizionale).',
-      highlights: ['Risparmio energetico fino al 70%', 'Anodo attivo anticorrosione ProTech', 'Funzionamento silenzioso 50 dB(A)'],
+      highlights: ['Risparmio energetico fino al 70%', 'Protezione attiva anticorrosione', 'Funzionamento silenzioso 50 dB(A)'],
       badge: '🔥 Risparmio -70%',
-      brand: 'ARISTON',
+      brand: 'CLIMAWELL',
       family: 'POMPE',
       price: 890.00,
       listPrice: 1190.00,
@@ -104,25 +104,25 @@
       imageUrl: ''
     },
     {
-      code: '780910',
-      seoTitle: 'Parete Doccia Walk-In 2B Cristallo Temperato 8mm Anticalcare 120x200 cm Profilo Cromo',
-      seoDescription: 'Parete doccia fissa aperta Walk-In 2B da 120 cm in vetro temperato 8 mm con trattamento anticalcare permanente e braccio di supporto.',
+      code: 'CW-WALKIN-120',
+      seoTitle: 'Parete Doccia Walk-In Cristallo Temperato 8mm Anticalcare 120x200 cm Profilo Cromo',
+      seoDescription: 'Parete doccia fissa aperta Walk-In da 120 cm in vetro temperato 8 mm con trattamento anticalcare permanente e braccio di supporto.',
       highlights: ['Vetro di sicurezza 8 mm alto spessore', 'Trattamento Anticalcare EasyClean', 'Installazione filo pavimento o piatto'],
       badge: '✨ Design Moderno',
-      brand: '2B',
-      family: '2B',
+      brand: 'CLIMAWELL',
+      family: 'ARREDO',
       price: 275.00,
       listPrice: 390.00,
       stock: 10,
       imageUrl: ''
     },
     {
-      code: 'MXZ-2F53VF',
-      seoTitle: 'Climatizzatore Dual Split Mitsubishi Electric 9000 + 12000 BTU Inverter R32 Wi-Fi',
-      seoDescription: 'Sistema completo Dual Split Mitsubishi Electric con unità esterna MXZ-2F53VF e 2 unità interne a parete MSZ-AP da 9000 e 12000 BTU.',
-      highlights: ['Kit completo: Motore + 2 Split + Telecomandi', 'Gestione indipendente di 2 stanze', 'Detrazione Fiscale 50% / Conto Termico'],
+      code: 'CW-DUAL-912',
+      seoTitle: 'Climatizzatore Dual Split Inverter R32 (9000 + 12000 BTU) Wi-Fi Pompa di Calore',
+      seoDescription: 'Sistema completo Dual Split con unità esterna e 2 unità interne a parete da 9000 e 12000 BTU a controllo indipendente.',
+      highlights: ['Kit completo: Motore + 2 Split + Telecomandi', 'Gestione indipendente di 2 ambienti', 'Detrazione Fiscale 50% / Conto Termico'],
       badge: '🏠 Kit Casa 2 Stanze',
-      brand: 'MITSUBISHI',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 1390.00,
       listPrice: 1850.00,
@@ -130,12 +130,12 @@
       imageUrl: ''
     },
     {
-      code: 'SLIM-FC-400',
-      seoTitle: 'Ventilconvettore Fancoil Idronico Ultraslim Inverter DC 18 cm Caldo/Freddo Touch',
+      code: 'CW-FANCOIL-SLIM',
+      seoTitle: 'Ventilconvettore Fancoil Idronico Ultraslim Inverter DC 13 cm Caldo/Freddo Touch',
       seoDescription: 'Terminale idronico fancoil ultrasottile (profondità soli 13 cm) con motore brushless DC inverter per pompe di calore e caldaie.',
       highlights: ['Spessore ultrasottile 13 cm', 'Motore ventilatore DC Inverter silenzioso', 'Display touch a bordo macchina'],
       badge: '🌡️ Ideale Pompe Calore',
-      brand: 'OLIMPIA',
+      brand: 'CLIMAWELL',
       family: 'POMPE',
       price: 340.00,
       listPrice: 460.00,
@@ -143,12 +143,12 @@
       imageUrl: ''
     },
     {
-      code: 'ATXF35E',
-      seoTitle: 'Climatizzatore Daikin Siesta ATXF35E 12000 BTU Inverter R32 Pompa di Calore A++',
-      seoDescription: 'Monosplit Daikin Siesta 12000 BTU 3,5 kW con gas ecologico R32, telecomando LCD e bassissimo consumo energetico in raffrescamento e riscaldamento.',
-      highlights: ['Qualità e affidabilità Daikin Siesta', 'Classe energetica A++ / A+', 'Pronta consegna con spedizione rapida'],
-      badge: '⭐ Novità Daikin Siesta',
-      brand: 'DAIKIN',
+      code: 'CW-CLIMA-PLUS12',
+      seoTitle: 'Climatizzatore Monosplit Inverter R32 Pompa di Calore Classe A++ (12000 BTU)',
+      seoDescription: 'Monosplit inverter 12000 BTU 3,5 kW con gas ecologico R32, telecomando digitale e bassissimo consumo energetico.',
+      highlights: ['Elevata affidabilità e silenziosità', 'Classe energetica A++ / A+', 'Pronta consegna con spedizione rapida'],
+      badge: '⭐ Top Rapporto Qualità/Prezzo',
+      brand: 'CLIMAWELL',
       family: 'CLIMA',
       price: 495.00,
       listPrice: 680.00,
@@ -156,13 +156,13 @@
       imageUrl: ''
     },
     {
-      code: '780650',
-      seoTitle: 'Porta Doccia Battente per Nicchia 2B Cristallo 6mm 70-80 cm Profilo Argento',
-      seoDescription: 'Porta doccia per installazione in nicchia 2B con apertura battente, vetro temperato trasparente 6 mm e profili ad alta resistenza anticorrosione.',
+      code: 'CW-NICCHIA-7080',
+      seoTitle: 'Porta Doccia Battente per Nicchia Cristallo 6mm 70-80 cm Profilo Argento',
+      seoDescription: 'Porta doccia per installazione in nicchia con apertura battente, vetro temperato trasparente 6 mm e profili ad alta resistenza.',
       highlights: ['Vetro temperato di sicurezza 6 mm', 'Regolazione estensibilità fino a 80 cm', 'Guarnizione magnetica tenuta stagna'],
-      badge: '🚿 Nicchia Bagno 2B',
-      brand: '2B',
-      family: '2B',
+      badge: '🚿 Soluzione Nicchia',
+      brand: 'CLIMAWELL',
+      family: 'ARREDO',
       price: 245.00,
       listPrice: 350.00,
       stock: 7,
@@ -513,10 +513,7 @@
 
   function detectBrandFromText(txt) {
     const u = String(txt || '').toUpperCase();
-    if (u.includes('DAIKIN') || u.startsWith('FTX') || u.startsWith('ALTHERMA')) return 'DAIKIN';
-    if (u.includes('MITSUBISHI') || u.startsWith('MSZ') || u.startsWith('MXZ')) return 'MITSUBISHI';
     if (u.includes('SAMSUNG') || u.includes('WINDFREE')) return 'SAMSUNG';
-    if (u.includes('BOX') || u.includes('DOCC') || u.startsWith('78')) return '2B';
     if (u.includes('ARISTON') || u.includes('NUOS')) return 'ARISTON';
     if (u.includes('HAIER')) return 'HAIER';
     if (u.includes('OLIMPIA')) return 'OLIMPIA';
@@ -525,14 +522,14 @@
 
   function detectFamilyFromText(txt) {
     const u = String(txt || '').toUpperCase();
-    if (u.includes('POMP') || u.includes('ALTHERMA') || u.includes('IDRONIC') || u.includes('SCALDACQUA') || u.includes('NUOS') || u.includes('FANCOIL') || u.includes('VENTIL')) return 'POMPE';
-    if (u.includes('2B') || u.includes('DOCC') || u.includes('BOX') || u.includes('CRISTALLO') || u.includes('WALK')) return '2B';
+    if (u.includes('POMP') || u.includes('IDRONIC') || u.includes('SCALDACQUA') || u.includes('NUOS') || u.includes('FANCOIL') || u.includes('VENTIL')) return 'POMPE';
+    if (u.includes('DOCC') || u.includes('BOX') || u.includes('CRISTALLO') || u.includes('WALK') || u.includes('ARREDO') || u.includes('BAGNO')) return 'ARREDO';
     return 'CLIMA';
   }
 
   function getDefaultHighlights(p) {
     const fam = String(p.family || '').toUpperCase();
-    if (fam.includes('2B')) {
+    if (fam.includes('ARREDO') || fam.includes('DOCC') || fam.includes('BOX')) {
       return [
         'Cristallo temperato certificato',
         'Profili alluminio anodizzato',
@@ -732,13 +729,13 @@
           if (p.stock <= 0) return false;
         } else if (cat === 'CLIMA') {
           const text = (p.description + ' ' + p.family + ' ' + p.brand + ' ' + p.seoTitle).toUpperCase();
-          if (!(text.includes('CLIMA') || text.includes('SPLIT') || text.includes('DAIKIN') || text.includes('MITSUBISHI') || text.includes('BARRIERA') || text.includes('BTU'))) return false;
+          if (!(text.includes('CLIMA') || text.includes('SPLIT') || text.includes('BARRIERA') || text.includes('BTU') || text.includes('CONDIZIONATORE'))) return false;
         } else if (cat === 'POMPE') {
           const text = (p.description + ' ' + p.family + ' ' + p.seoTitle).toUpperCase();
           if (!(text.includes('POMP') || text.includes('CALORE') || text.includes('IDRONIC') || text.includes('ALTHERMA') || text.includes('SCALDACQUA') || text.includes('FANCOIL'))) return false;
-        } else if (cat === '2B') {
+        } else if (cat === 'ARREDO' || cat === '2B') {
           const text = (p.description + ' ' + p.family + ' ' + p.brand + ' ' + p.seoTitle).toUpperCase();
-          if (!(text.includes('2B') || text.includes('DOCC') || text.includes('BOX') || text.includes('TERMO'))) return false;
+          if (!(text.includes('DOCC') || text.includes('BOX') || text.includes('BAGNO') || text.includes('ARREDO') || text.includes('TERMO'))) return false;
         }
       }
 
@@ -1772,6 +1769,12 @@
       showToast('⚠️ Il carrello è vuoto! Aggiungi almeno un articolo.');
       return false;
     }
+    const privacyCheck = document.getElementById('orderPrivacyConsent');
+    if (privacyCheck && !privacyCheck.checked) {
+      showToast('⚠️ È necessario accettare l\'Informativa sulla Privacy per completare l\'ordine');
+      privacyCheck.focus();
+      return false;
+    }
     if (!data.customerName) {
       showToast('⚠️ Inserisci Nome/Cognome o Ragione Sociale dell\'acquirente');
       document.getElementById('orderCustomerInput')?.focus();
@@ -2785,7 +2788,7 @@
     const brand = String(product?.brand || 'CLIMAWELL').toUpperCase().replace(/[<>&"']/g, '');
     const text = `${code} ${product?.seoTitle || ''} ${product?.description || ''} ${product?.family || ''}`.toUpperCase();
 
-    if (text.includes('DOCC') || text.includes('BOX') || text.includes('2B') || text.includes('WALK')) {
+    if (text.includes('DOCC') || text.includes('BOX') || text.includes('ARREDO') || text.includes('WALK')) {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
         <defs>
           <linearGradient id="bg2b" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f0f9ff"/><stop offset="100%" stop-color="#e0f2fe"/></linearGradient>

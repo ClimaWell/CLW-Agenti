@@ -1,8 +1,22 @@
 User-agent: *
 Allow: /e-com/
-Allow: /shop/
-Allow: /index.html
+Allow: /e-com/index.html
+Allow: /e-com/tracking.html
+Allow: /e-com/styles.css
+Allow: /e-com/ecom.js
 Allow: /sitemap.xml
+Allow: /favicon.svg
+Disallow: /e-com/index-amm.html
+Disallow: /index.html
+Disallow: /offerta*
+Disallow: /gestione-ordini*
+Disallow: /configurazione*
+Disallow: /magazzino*
+Disallow: /area-sviluppo*
+Disallow: /giro-visite*
+Disallow: /pianificazione-produzione*
+Disallow: /commercial-hub*
 Disallow: /netlify/
+Disallow: /api/
 
 Sitemap: https://clw-agenti.netlify.app/sitemap.xml

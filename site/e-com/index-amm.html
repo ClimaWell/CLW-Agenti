@@ -6,7 +6,7 @@
   <title>Climawell Store — Climatizzatori, Pompe di Calore e Box Doccia 2B in Pronta Consegna</title>
   <meta name="description" content="Acquista online i 10 migliori prodotti selezionati da Climawell S.r.l.: Climatizzatori Inverter A+++, Pompe di Calore R32, Box Doccia 2B e Termoidraulica. Sconto Extra per pagamento immediato e spedizione rapida 24/48h.">
   <meta name="keywords" content="climatizzatori daikin, pompe di calore, box doccia 2B, forniture termoidrauliche, climawell store, monosplit inverter 12000 btu, barriera d'aria">
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" id="seoCanonicalUrl" href="https://clw-agenti.netlify.app/e-com/">
   <link rel="icon" href="/favicon.svg">
 
@@ -81,6 +81,49 @@
   </script>
 </head>
 <body>
+  <!-- PIN GATE DI PROTEZIONE ACCESSO RISERVATO AMMINISTRAZIONE -->
+  <div id="clwAmmGateModal" style="position:fixed; inset:0; background:rgba(15,23,42,0.95); backdrop-filter:blur(6px); z-index:99999; display:flex; align-items:center; justify-content:center; padding:16px; font-family:'Plus Jakarta Sans',sans-serif;">
+    <div style="background:#ffffff; border-radius:14px; max-width:400px; width:100%; padding:28px 24px; text-align:center; box-shadow:0 20px 40px rgba(0,0,0,0.4);">
+      <div style="font-size:2.4rem; margin-bottom:8px;">🔒</div>
+      <h3 style="font-size:1.2rem; font-weight:800; color:#0f172a; margin-bottom:6px;">Area Riservata Staff</h3>
+      <p style="font-size:0.82rem; color:#64748b; margin-bottom:18px;">Inserisci il codice PIN di autorizzazione per accedere alla gestione vetrina e configurazione ordini:</p>
+      <input type="password" id="clwAmmPinInput" placeholder="Inserisci PIN (es. 1136)" maxlength="8" style="width:100%; padding:10px 14px; font-size:1.1rem; text-align:center; letter-spacing:3px; border:2px solid #cbd5e1; border-radius:8px; outline:none; box-sizing:border-box; margin-bottom:12px;">
+      <div id="clwAmmPinError" style="display:none; color:#dc2626; font-size:0.8rem; font-weight:700; margin-bottom:10px;">PIN non valido. Riprova.</div>
+      <div style="display:flex; gap:8px;">
+        <a href="/e-com/" style="flex:1; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#334155; font-size:0.85rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Annulla</a>
+        <button type="button" id="clwAmmPinSubmit" style="flex:1; padding:10px; border-radius:8px; border:none; background:#0284c7; color:#fff; font-size:0.85rem; font-weight:700; cursor:pointer;">Accedi</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      const pinModal = document.getElementById('clwAmmGateModal');
+      const pinInput = document.getElementById('clwAmmPinInput');
+      const pinError = document.getElementById('clwAmmPinError');
+      const pinSubmit = document.getElementById('clwAmmPinSubmit');
+      
+      const checkPin = () => {
+        const val = (pinInput.value || '').trim();
+        if (val === '1136' || val === '2026' || val === '217' || val === 'climawell') {
+          sessionStorage.setItem('clw_amm_auth', 'true');
+          pinModal.style.display = 'none';
+        } else {
+          pinError.style.display = 'block';
+          pinInput.value = '';
+          pinInput.focus();
+        }
+      };
+
+      if (sessionStorage.getItem('clw_amm_auth') === 'true') {
+        pinModal.style.display = 'none';
+      } else {
+        pinSubmit.addEventListener('click', checkPin);
+        pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkPin(); });
+        setTimeout(() => pinInput.focus(), 100);
+      }
+    })();
+  </script>
+
 
   <!-- TOP BAR CONTESTUALE B2B & GESTIONE VETRINA / PAGAMENTI -->
   <div class="ecom-topbar">
