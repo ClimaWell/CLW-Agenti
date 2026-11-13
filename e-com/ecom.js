@@ -173,10 +173,10 @@
   // Regole Pagamento Predefinite (B2B Ri.Ba. 60-90gg vs Privati Obbligo Anticipato + Sconto Extra)
   const DEFAULT_PAYMENT_RULES = {
     extraDiscountCardPct: 4.0,
-    extraDiscountBankPct: 2.0,
+    extraDiscountBankPct: 4.0, // Sconto Extra 4% applicato su Bonifico Bancario Anticipato
     standardShippingCost: 6.99, // Costo trasporto corriere standard (modificabile dall'Amministratore)
     companyIban: 'IT60 X054 2811 1010 0000 0123 456',
-    b2cAllowCard: true,
+    b2cAllowCard: false, // Disabilitato nella fase operativa: evita pagamenti test fittizi
     b2cAllowPrepaidBank: true,
     b2cAllowAssisted: true,
     b2bAccessMode: 'ALL_PIVA', // 'ALL_PIVA' oppure 'WHITELIST_ONLY'
@@ -196,7 +196,7 @@
     paymentRules: { ...DEFAULT_PAYMENT_RULES },
     buyerType: 'B2B', // 'B2B' (Azienda P.IVA) oppure 'B2C' (Privato C.F.)
     priceMode: 'B2B', // 'B2B' (Prezzi netti + IVA) oppure 'B2C' (Prezzi IVA 22% inclusa)
-    activePaymentTab: 'stripe', // 'stripe' | 'prepaid_bank' | 'assisted'
+    activePaymentTab: 'prepaid_bank', // Default su Bonifico Bancario Anticipato (100% operativo e sicuro)
     currentCategory: 'TOP10',
     brandFilter: 'ALL',
     priceFilter: 'ALL',
@@ -1088,7 +1088,7 @@
           'name': 'Climawell S.r.l. — Vetrina E-Commerce Climatizzazione & Termoidraulica',
           'url': baseUrl,
           'telephone': '+39-055-4289074',
-          'email': 'ordini@climawell.it',
+          'email': 'commerciale@climawell.it',
           'priceRange': '€€',
           'address': {
             '@type': 'PostalAddress',
@@ -1339,7 +1339,7 @@
     const tabAssisted = document.getElementById('tabAssistedMethod');
 
     const secStripe = document.getElementById('stripeCheckoutSection');
-    const secBank = document.getElementById('prepaidBankCheckoutSection');
+    const secBank = document.getElementById('prepaidBankCheckoutSection') || document.getElementById('prepaidBankSection');
     const secAssisted = document.getElementById('assistedOrderSection');
 
     tabStripe?.classList.toggle('active', target === 'stripe');
@@ -1946,7 +1946,7 @@
     const order = buildOrderMessage(payDesc);
     logOrderCrm('email', order.customer, order.financials, order.agent, { payment_label: payDesc }, f);
 
-    const targetEmail = 'ordini@climawell.it';
+    const targetEmail = 'commerciale@climawell.it';
     const codesSummary = order.financials.lines.map(l => l.code).join(', ');
     const subject = `Ordine Store Climawell (${codesSummary}) - Cliente ${order.customer}`;
     const body = order.text.replace(/\*/g, '');
@@ -1956,89 +1956,10 @@
     closeOrderModal();
   }
 
-  // Pagamento Immediato con Carta (Stripe Direct Charge + Sconto Extra Cassa)
+  // Pagamento Immediato con Carta: Disabilitata simulazione di test per la sicurezza operativa
   async function processStripeDirectCharge() {
-    const f = collectCustomerFormData();
-    if (!validateCustomerForm(f)) return;
-
-    const cardNumber = (document.getElementById('stripeCardNumber')?.value || '').replace(/\s+/g, '');
-    const cardHolder = (document.getElementById('stripeCardHolder')?.value || f.customerName).trim();
-
-    if (!cardNumber || cardNumber.length < 13) {
-      showToast('⚠️ Inserisci un numero di carta valido o clicca su "🟢 4242 (Successo)"');
-      return;
-    }
-
-    const fin = calculateCartFinancials();
-    const connectedAccount = document.getElementById('cfgStripeAccount')?.value.trim() || EcomState.stripeConfig.connectedAccountId;
-    const feePercent = parseFloat(document.getElementById('cfgStripeFeePercent')?.value || EcomState.stripeConfig.applicationFeePercent || 2.5);
-    const applicationFeeAmount = fin.grandTotal * (feePercent / 100);
-
-    const btnPay = document.getElementById('btnStripeDirectPay');
-    const spinner = document.getElementById('stripePaySpinner');
-    const label = document.getElementById('btnStripePayLabel');
-
-    if (btnPay) btnPay.disabled = true;
-    if (spinner) spinner.classList.remove('hidden');
-    if (label) label.textContent = 'Elaborazione Direct Charge su ' + connectedAccount + '...';
-
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1100));
-
-      if (cardNumber.endsWith('0002')) {
-        throw new Error('Transazione rifiutata dalla banca emittente (card_declined).');
-      }
-
-      if (cardNumber.endsWith('3021')) {
-        showToast('🔐 Autenticazione 3D Secure 2.0 confermata con successo!');
-        await new Promise(resolve => setTimeout(resolve, 600));
-      }
-
-      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const rand = Math.floor(100000 + Math.random() * 900000);
-      const orderNumber = `ORD-${f.agent}-${timestamp}-${rand}`;
-      const chargeId = 'ch_direct_' + Math.random().toString(36).substring(2, 12).toUpperCase();
-      const paymentLabel = `CARTA STRIPE (${chargeId}) - Sconto Extra -${fin.extraDiscountPct}%`;
-
-      const savedDoc = await logOrderCrm('stripe_direct_charge', f.customerName, fin, f.agent, {
-        order_number: orderNumber,
-        payment_label: paymentLabel,
-        stripe_charge_id: chargeId,
-        connected_account_id: connectedAccount,
-        gross_amount_eur: Number(fin.grandTotal.toFixed(2)),
-        application_fee_eur: Number(applicationFeeAmount.toFixed(2)),
-        card_holder: cardHolder,
-        card_last4: cardNumber.slice(-4)
-      }, f);
-
-      clearCart();
-      closeOrderModal();
-      openStripeReceiptModal({
-        title: 'Pagamento Confermato con Successo!',
-        subtitle: `Sconto Extra Immediato (-${fin.extraDiscountPct}%) applicato • Ordine approvato per il Picking`,
-        orderId: savedDoc?.id || '',
-        orderNumber,
-        chargeId,
-        connectedAccount,
-        productDesc: fin.lines.map(l => `${l.code} — ${l.title} (x${l.qty})`).join(' | '),
-        qty: fin.totalItems,
-        grandTotal: fin.grandTotal,
-        feeText: `Sconto Extra Cliente -${fin.extraDiscountPct}% (-€ ${euro(fin.extraDiscountAmount)}) • Fee SaaS: € ${euro(applicationFeeAmount)}`,
-        customer: `${f.customerName} (${f.taxId})`,
-        shippingDest: f.deliveryType === 'RITIRO_BANCO'
-          ? 'Ritiro al Banco Magazzino Climawell'
-          : `${f.address}, ${f.cap} ${f.city} (${f.province})`,
-        agent: f.agent
-      });
-
-      showToast('✅ Pagamento completato con Sconto Extra e righe inviate al Magazzino!');
-    } catch (err) {
-      showToast('❌ Errore Pagamento: ' + (err.message || 'Transazione non riuscita'));
-    } finally {
-      if (btnPay) btnPay.disabled = false;
-      if (spinner) spinner.classList.add('hidden');
-      updateOrderSummary();
-    }
+    showToast('ℹ️ Il terminale per carte di credito è in fase di certificazione bancaria Stripe. Seleziona "Bonifico Bancario Anticipato" per confermare subito l\'ordine con lo Sconto Extra (-4%)!', 6000);
+    switchPaymentMethodTab('prepaid_bank');
   }
 
   function openStripeReceiptModal(data) {
@@ -2258,7 +2179,7 @@
       textContent: `Conferma Ordine Climawell ${orderRecord.doc_number} - Totale IVA incl.: € ${euro(orderRecord.total_gross)} - Tracking: ${trackingUrl}`,
       to: [
         ...(orderRecord.email ? [{ email: orderRecord.email, name: orderRecord.customer_name }] : []),
-        { email: 'daniele@climawell.it', name: 'Amministrazione Ordini Climawell' }
+        { email: 'commerciale@climawell.it', name: 'Ufficio Commerciale Climawell' }
       ]
     };
 
@@ -2344,7 +2265,7 @@
           <div><strong>${escapeHtml(total)}</strong></div>
         </div>
         <div class="footer">
-          Climawell S.r.l. — Gestione Rete Vendite — Tel. 055-4289074 — ordini@climawell.it
+          Climawell S.r.l. — Gestione Rete Vendite — Tel. 055-4289074 — commerciale@climawell.it
         </div>
       </body>
       </html>
@@ -2766,12 +2687,13 @@
     });
     document.getElementById('btnPrintReceipt')?.addEventListener('click', printReceiptDocument);
 
-    // Tab Selezione Metodo di Pagamento (3 opzioni: Carta Stripe -4%, Bonifico Anticipato -2%, Dilazione B2B Ri.Ba. 60-90gg)
+    // Tab Selezione Metodo di Pagamento (3 opzioni: Bonifico Anticipato -4%, Carta Stripe in attivazione, Dilazione B2B Ri.Ba. 60-90gg)
     document.getElementById('tabStripeMethod')?.addEventListener('click', () => switchPaymentMethodTab('stripe'));
     document.getElementById('tabPrepaidBankMethod')?.addEventListener('click', () => switchPaymentMethodTab('prepaid_bank'));
     document.getElementById('tabAssistedMethod')?.addEventListener('click', () => switchPaymentMethodTab('assisted'));
 
-    document.getElementById('btnSwitchB2bToCard')?.addEventListener('click', () => switchPaymentMethodTab('stripe'));
+    document.getElementById('btnSwitchToBankTransfer')?.addEventListener('click', () => switchPaymentMethodTab('prepaid_bank'));
+    document.getElementById('btnSwitchB2bToCard')?.addEventListener('click', () => switchPaymentMethodTab('prepaid_bank'));
 
     document.getElementById('b2bDeferredTermSelect')?.addEventListener('change', (e) => {
       const lbl = document.getElementById('btnB2bTermLabel');
@@ -2780,8 +2702,11 @@
 
     // Pulsanti di Conferma Ordine per ciascun metodo
     document.getElementById('btnStripeDirectPay')?.addEventListener('click', processStripeDirectCharge);
+    document.getElementById('btnConfirmStripePayment')?.addEventListener('click', processStripeDirectCharge);
     document.getElementById('btnConfirmPrepaidBank')?.addEventListener('click', confirmPrepaidBankOrder);
+    document.getElementById('btnConfirmBankTransfer')?.addEventListener('click', confirmPrepaidBankOrder);
     document.getElementById('btnConfirmB2bRibaOrder')?.addEventListener('click', confirmB2bDeferredOrder);
+    document.getElementById('btnConfirmB2bDeferred')?.addEventListener('click', confirmB2bDeferredOrder);
     document.getElementById('btnConfirmViaWhatsApp')?.addEventListener('click', sendOrderViaWhatsApp);
     document.getElementById('btnConfirmViaEmail')?.addEventListener('click', sendOrderViaEmail);
 
@@ -2793,46 +2718,6 @@
       clearCart();
       showToast('✅ Ordine multi-articolo registrato in Gestione Ordini & Magazzino!');
       closeOrderModal();
-    });
-
-    // Configurazione Stripe SaaS & Carte Test
-    document.getElementById('btnToggleStripeCfg')?.addEventListener('click', () => {
-      document.getElementById('stripeCfgPanel')?.classList.toggle('hidden');
-    });
-
-    document.getElementById('cfgStripeFeePercent')?.addEventListener('input', (e) => {
-      EcomState.stripeConfig.applicationFeePercent = parseFloat(e.target.value) || 2.5;
-      updateOrderSummary();
-    });
-
-    document.querySelectorAll('.btn-test-card').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.card;
-        const numInput = document.getElementById('stripeCardNumber');
-        const expInput = document.getElementById('stripeCardExpiry');
-        const cvcInput = document.getElementById('stripeCardCvc');
-        const nameInput = document.getElementById('stripeCardHolder');
-
-        if (type === 'success') {
-          if (numInput) numInput.value = '4242 4242 4242 4242';
-          if (expInput) expInput.value = '12/28';
-          if (cvcInput) cvcInput.value = '123';
-          if (nameInput) nameInput.value = 'MARIO ROSSI (TEST DIRECT CHARGE)';
-          showToast('✅ Caricata carta test Stripe di successo (4242)');
-        } else if (type === '3ds') {
-          if (numInput) numInput.value = '4000 0000 0000 3021';
-          if (expInput) expInput.value = '10/27';
-          if (cvcInput) cvcInput.value = '321';
-          if (nameInput) nameInput.value = 'TEST AUTENTICAZIONE 3D SECURE';
-          showToast('🟡 Caricata carta test con 3D Secure (3021)');
-        } else if (type === 'declined') {
-          if (numInput) numInput.value = '4000 0000 0000 0002';
-          if (expInput) expInput.value = '08/26';
-          if (cvcInput) cvcInput.value = '999';
-          if (nameInput) nameInput.value = 'TEST CARTA RIFIUTATA';
-          showToast('🔴 Caricata carta test di rifiuto fondi (0002)');
-        }
-      });
     });
   }
 

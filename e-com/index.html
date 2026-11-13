@@ -37,7 +37,7 @@
         "name": "Climawell S.r.l. — Forniture Climatizzazione & Termoidraulica",
         "url": "https://clw-agenti.netlify.app/e-com/",
         "telephone": "+39-055-4289074",
-        "email": "ordini@climawell.it",
+        "email": "commerciale@climawell.it",
         "priceRange": "€€",
         "paymentAccepted": "Credit Card, Stripe Direct Charge, Bank Transfer, Ri.Ba.",
         "currenciesAccepted": "EUR",
@@ -356,7 +356,7 @@
     <div class="footer-container">
       <div>
         <strong>Climawell S.r.l. — Forniture Climatizzazione, Riscaldamento &amp; Arredo Bagno</strong>
-        <p style="margin:4px 0;">Sede Legale &amp; Magazzino: Firenze (FI) • P.IVA: 05428111010 • Tel: 055-4289074 • Email: ordini@climawell.it</p>
+        <p style="margin:4px 0;">Sede Legale &amp; Magazzino: Firenze (FI) • P.IVA: 05428111010 • Tel: 055-4289074 • Email: <a href="mailto:commerciale@climawell.it" style="color:inherit; text-decoration:underline;">commerciale@climawell.it</a></p>
         <p style="font-size:0.75rem; color:#64748b;">Orari Ritiro al Banco: Lunedì - Venerdì 08:00-12:30 / 14:00-18:30</p>
       </div>
       <div class="footer-links">
@@ -574,16 +574,16 @@
         </div>
 
         <div class="checkout-method-tabs three-tabs">
-          <button type="button" class="method-tab active" id="tabStripeMethod" data-target="stripe">
-            <div>
-              <div>💳 Paga Subito con Carta</div>
-              <span class="tab-badge-discount" id="badgeTabCardDiscount">🎁 SCONTO EXTRA -4%</span>
-            </div>
-          </button>
-          <button type="button" class="method-tab" id="tabPrepaidBankMethod" data-target="prepaid_bank">
+          <button type="button" class="method-tab active" id="tabPrepaidBankMethod" data-target="prepaid_bank">
             <div>
               <div>🏦 Bonifico Anticipato</div>
-              <span class="tab-badge-discount" id="badgeTabBankDiscount">🎁 SCONTO EXTRA -2%</span>
+              <span class="tab-badge-discount" id="badgeTabBankDiscount">🎁 SCONTO EXTRA -4%</span>
+            </div>
+          </button>
+          <button type="button" class="method-tab" id="tabStripeMethod" data-target="stripe">
+            <div>
+              <div>💳 Carta di Credito</div>
+              <span class="tab-badge-discount" id="badgeTabCardDiscount" style="background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;">IN ATTIVAZIONE</span>
             </div>
           </button>
           <button type="button" class="method-tab" id="tabAssistedMethod" data-target="assisted">
@@ -622,54 +622,40 @@
           </div>
         </div>
 
-        <!-- 1. SEZIONE STRIPE DIRECT CHARGES -->
-        <div class="stripe-checkout-section" id="stripeCheckoutSection">
-          <div class="stripe-connect-banner">
-            <div class="stripe-badge-header">
-              <span class="stripe-logo-text">stripe <span>connect</span></span>
-              <span class="direct-charge-badge">⚡ SCONTO EXTRA IMMEDIATO APPLICATO</span>
-            </div>
-            <p class="stripe-explainer">
-              Pagamento sicuro protetto da crittografia a 256-bit. Incasso diretto sul conto aziendale Climawell S.r.l.
+        <!-- 1. SEZIONE STRIPE DIRECT CHARGES (IN FASE DI ATTIVAZIONE BANCARIA) -->
+        <div class="stripe-checkout-section hidden" id="stripeCheckoutSection">
+          <div style="background:#f8fafc; border:2px dashed #94a3b8; border-radius:12px; padding:22px; text-align:center;">
+            <div style="font-size:2.2rem; margin-bottom:10px;">🔒 💳</div>
+            <h4 style="font-size:1.1rem; font-weight:700; color:#0f172a; margin-bottom:8px;">Pagamento con Carta di Credito (Stripe) in Attivazione</h4>
+            <p style="font-size:0.86rem; color:#475569; max-width:580px; margin:0 auto 16px; line-height:1.5;">
+              Il terminale POS telematico per carte di credito è attualmente in corso di attivazione e certificazione bancaria su circuito <strong>Stripe</strong> a norma PCI-DSS. Per la tutela dell'acquirente, non è consentito inserire carte di credito di test o non certificate.
             </p>
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:14px; margin-bottom:18px; text-align:left; font-size:0.85rem; color:#1e40af;">
+              <strong style="display:block; margin-bottom:6px;">💡 Come confermare l'ordine in tempo reale con lo SCONTO EXTRA (-4%):</strong>
+              <ul style="margin:0 0 0 18px; padding:0; line-height:1.5;">
+                <li>Seleziona <strong>🏦 Bonifico Bancario Anticipato</strong>: le coordinate IBAN aziendali di Climawell S.r.l. sono subito attive e lo <strong>Sconto Extra (-4%)</strong> viene confermato immediatamente!</li>
+                <li>Se sei un'azienda o installatore abilitato, seleziona <strong>🏢 Pagamento B2B (Ri.Ba.)</strong> per usare le tue condizioni abituali.</li>
+                <li>Oppure inviaci direttamente la richiesta via email a <a href="mailto:commerciale@climawell.it" style="font-weight:700; color:#1d4ed8; text-decoration:underline;">commerciale@climawell.it</a> o Tel. <strong>055-4289074</strong>.</li>
+              </ul>
+            </div>
+            <button type="button" class="btn-submit-order" id="btnSwitchToBankTransfer" style="background:#0284c7; width:auto; padding:12px 28px; display:inline-block; font-size:0.92rem; border-radius:8px;">
+              🏦 Passa a Bonifico Anticipato (Sconto Extra -4% Attivo)
+            </button>
           </div>
-
-          <div class="order-form-grid" style="margin-top:12px;">
-            <div class="form-group full-width">
-              <label>Nome Intestatario Carta: <span class="req">*</span></label>
-              <input type="text" id="stripeCardName" placeholder="Es. Mario Rossi">
-            </div>
-            <div class="form-group full-width">
-              <label>Numero Carta di Credito o Debito: <span class="req">*</span></label>
-              <input type="text" id="stripeCardNumber" placeholder="4242 •••• •••• 4242" maxlength="19">
-            </div>
-            <div class="form-group">
-              <label>Scadenza (MM/AA): <span class="req">*</span></label>
-              <input type="text" id="stripeCardExp" placeholder="12/28" maxlength="5">
-            </div>
-            <div class="form-group">
-              <label>Codice CVC / CVV: <span class="req">*</span></label>
-              <input type="password" id="stripeCardCvc" placeholder="•••" maxlength="4">
-            </div>
-          </div>
-
-          <button type="button" class="btn-submit-order" id="btnConfirmStripePayment" style="margin-top:14px; background:#059669;">
-            🔒 Paga Ora con Sconto Extra • <span id="btnStripeAmountText">€ 0,00</span>
-          </button>
         </div>
 
-        <!-- 2. SEZIONE BONIFICO BANCARIO ANTICIPATO -->
-        <div class="prepaid-bank-section hidden" id="prepaidBankSection">
+        <!-- 2. SEZIONE BONIFICO BANCARIO ANTICIPATO (ATTIVA DI DEFAULT) -->
+        <div class="prepaid-bank-section" id="prepaidBankSection">
           <div class="bank-transfer-box">
             <h4 style="font-size:0.88rem; color:#0f172a; margin-bottom:6px;">🏦 Coordinate Bancarie Climawell S.r.l.</h4>
-            <p style="font-size:0.78rem; color:#475569; margin-bottom:8px;">Effettua il bonifico indicando il tuo nominativo. La spedizione partirà all'accredito contabile:</p>
+            <p style="font-size:0.78rem; color:#475569; margin-bottom:8px;">Effettua il bonifico indicando il tuo nominativo e il numero ordine. La spedizione partirà all'accredito contabile:</p>
             <div class="iban-display-row">
               <span style="font-size:0.75rem; color:#64748b;">IBAN:</span>
               <strong id="displayCompanyIban" style="font-family:monospace; font-size:0.85rem; color:#0284c7;">IT60 X054 2811 1010 0000 0123 456</strong>
             </div>
           </div>
           <button type="button" class="btn-submit-order" id="btnConfirmBankTransfer" style="margin-top:14px; background:#0284c7;">
-            📨 Conferma Ordine con Bonifico Anticipato
+            📨 Conferma Ordine con Bonifico Anticipato (Sconto Extra -4%)
           </button>
         </div>
 

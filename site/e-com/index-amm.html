@@ -37,7 +37,7 @@
         "name": "Climawell S.r.l. — Vetrina E-Commerce Climatizzazione & Termoidraulica",
         "url": "https://clw-agenti.netlify.app/e-com/",
         "telephone": "+39-055-4289074",
-        "email": "ordini@climawell.it",
+        "email": "commerciale@climawell.it",
         "priceRange": "€€",
         "address": {
           "@type": "PostalAddress",
@@ -358,7 +358,7 @@
     <div class="footer-container">
       <div>
         <strong>Climawell S.r.l. — Forniture Climatizzazione, Riscaldamento &amp; Arredo Bagno</strong>
-        <p>Assistenza Commerciale: Tel. 055-4289074 • Email: ordini@climawell.it • Piattaforma E-COM B2B/B2C</p>
+        <p>Assistenza Commerciale: Tel. 055-4289074 • Email: <a href="mailto:commerciale@climawell.it" style="color:inherit; text-decoration:underline;">commerciale@climawell.it</a> • Piattaforma E-COM B2B/B2C</p>
       </div>
       <div class="footer-links">
         <a href="/e-com/">Vetrina Top 10</a>
@@ -810,16 +810,16 @@
         </div>
 
         <div class="checkout-method-tabs three-tabs">
-          <button type="button" class="method-tab active" id="tabStripeMethod" data-target="stripe">
-            <div>
-              <div>💳 Paga Subito con Carta</div>
-              <span class="tab-badge-discount" id="badgeTabCardDiscount">🎁 SCONTO EXTRA -4%</span>
-            </div>
-          </button>
-          <button type="button" class="method-tab" id="tabPrepaidBankMethod" data-target="prepaid_bank">
+          <button type="button" class="method-tab active" id="tabPrepaidBankMethod" data-target="prepaid_bank">
             <div>
               <div>🏦 Bonifico Anticipato</div>
-              <span class="tab-badge-discount" id="badgeTabBankDiscount">🎁 SCONTO EXTRA -2%</span>
+              <span class="tab-badge-discount" id="badgeTabBankDiscount">🎁 SCONTO EXTRA -4%</span>
+            </div>
+          </button>
+          <button type="button" class="method-tab" id="tabStripeMethod" data-target="stripe">
+            <div>
+              <div>💳 Carta di Credito</div>
+              <span class="tab-badge-discount" id="badgeTabCardDiscount" style="background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;">IN ATTIVAZIONE</span>
             </div>
           </button>
           <button type="button" class="method-tab" id="tabAssistedMethod" data-target="assisted">
@@ -858,107 +858,30 @@
           </div>
         </div>
 
-        <!-- 1. SEZIONE STRIPE DIRECT CHARGES (PAGAMENTO IMMEDIATO CON SCONTO EXTRA MASSIMO) -->
-        <div class="stripe-checkout-section" id="stripeCheckoutSection">
-          <div class="stripe-connect-banner">
-            <div class="stripe-badge-header">
-              <span class="stripe-logo-text">stripe <span>connect</span></span>
-              <span class="direct-charge-badge">⚡ SCONTO EXTRA IMMEDIATO APPLICATO</span>
+        <!-- 1. SEZIONE STRIPE DIRECT CHARGES (IN FASE DI ATTIVAZIONE BANCARIA) -->
+        <div class="stripe-checkout-section hidden" id="stripeCheckoutSection">
+          <div style="background:#f8fafc; border:2px dashed #94a3b8; border-radius:12px; padding:22px; text-align:center;">
+            <div style="font-size:2.2rem; margin-bottom:10px;">🔒 💳</div>
+            <h4 style="font-size:1.1rem; font-weight:700; color:#0f172a; margin-bottom:8px;">Pagamento con Carta di Credito (Stripe) in Attivazione</h4>
+            <p style="font-size:0.86rem; color:#475569; max-width:580px; margin:0 auto 16px; line-height:1.5;">
+              Il terminale virtuale per carte di credito è attualmente in fase di certificazione bancaria su circuito <strong>Stripe</strong> a norma PCI-DSS. Per la tutela dell'acquirente e dell'azienda, non è consentito inserire carte di credito di test o non certificate.
+            </p>
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:14px; margin-bottom:18px; text-align:left; font-size:0.85rem; color:#1e40af;">
+              <strong style="display:block; margin-bottom:6px;">💡 Come confermare l'ordine in tempo reale con lo SCONTO EXTRA (-4%):</strong>
+              <ul style="margin:0 0 0 18px; padding:0; line-height:1.5;">
+                <li>Seleziona <strong>🏦 Bonifico Bancario Anticipato</strong>: le coordinate IBAN aziendali di Climawell S.r.l. sono subito attive e lo <strong>Sconto Extra (-4%)</strong> viene confermato immediatamente!</li>
+                <li>Se sei un'azienda o installatore abilitato, seleziona <strong>🏢 Pagamento B2B (Ri.Ba.)</strong> per usare le tue condizioni abituali.</li>
+                <li>Oppure inviaci direttamente la richiesta via email a <a href="mailto:commerciale@climawell.it" style="font-weight:700; color:#1d4ed8; text-decoration:underline;">commerciale@climawell.it</a> o Tel. <strong>055-4289074</strong>.</li>
+              </ul>
             </div>
-            <div class="stripe-account-info">
-              <span>Commerciante (Connected Account):</span>
-              <code id="stripeConnectedAccountLabel">acct_climawell_b2b</code>
-              <button type="button" class="btn-toggle-stripe-cfg" id="btnToggleStripeCfg">⚙️ Parametri SaaS</button>
-            </div>
-          </div>
-
-          <div class="stripe-cfg-panel hidden" id="stripeCfgPanel">
-            <div class="cfg-panel-header">
-              <strong>Parametri Architettura SaaS (Daniele Lupi Platform ➔ Climawell)</strong>
-              <small>Direttiva Direct Charges: incasso diretto al Commerciante, trattenuta automatica fee SaaS</small>
-            </div>
-            <div class="cfg-inputs-grid">
-              <div class="cfg-group">
-                <label>Publishable Key (Piattaforma SaaS):</label>
-                <input type="text" id="cfgStripePubKey" value="pk_test_51P7DemoSaaSDanieleLupi00000000000000">
-              </div>
-              <div class="cfg-group">
-                <label>ID Commerciante Venditore (stripeAccount Climawell):</label>
-                <input type="text" id="cfgStripeAccount" value="acct_climawell_b2b" placeholder="acct_...">
-              </div>
-              <div class="cfg-group">
-                <label>Application Fee SaaS (% spettante a Daniele Lupi):</label>
-                <input type="number" id="cfgStripeFeePercent" value="2.5" step="0.1" min="0" max="20">
-              </div>
-            </div>
-          </div>
-
-          <div class="stripe-card-box">
-            <div class="card-box-header">
-              <label>Dati Carta di Credito / Debito:</label>
-              <div class="card-brand-icons">
-                <span class="brand-icon">VISA</span>
-                <span class="brand-icon">Mastercard</span>
-                <span class="brand-icon">Amex</span>
-                <span class="brand-icon">Apple Pay</span>
-              </div>
-            </div>
-
-            <div class="quick-test-cards">
-              <span class="quick-test-label">Carte Test Stripe:</span>
-              <button type="button" class="btn-test-card" data-card="success">🟢 4242 (Successo)</button>
-              <button type="button" class="btn-test-card" data-card="3ds">🟡 3D Secure</button>
-              <button type="button" class="btn-test-card" data-card="declined">🔴 Rifiuto Fondi</button>
-            </div>
-
-            <div class="card-inputs-wrapper">
-              <div class="form-group full-width">
-                <label>Numero Carta:</label>
-                <div class="card-number-input-box">
-                  <input type="text" id="stripeCardNumber" placeholder="4242 •••• •••• 4242" maxlength="19" autocomplete="cc-number">
-                  <span class="card-type-icon" id="cardTypeIcon">💳</span>
-                </div>
-              </div>
-              <div class="card-row-half">
-                <div class="form-group">
-                  <label>Scadenza (MM/AA):</label>
-                  <input type="text" id="stripeCardExpiry" placeholder="12/28" maxlength="5" autocomplete="cc-exp">
-                </div>
-                <div class="form-group">
-                  <label>CVC / CVV:</label>
-                  <input type="text" id="stripeCardCvc" placeholder="123" maxlength="4" autocomplete="cc-csc">
-                </div>
-              </div>
-              <div class="form-group full-width">
-                <label>Nome Intestatario Carta:</label>
-                <input type="text" id="stripeCardHolder" placeholder="Es. Mario Rossi o Ragione Sociale">
-              </div>
-            </div>
-
-            <div class="direct-charge-breakdown">
-              <div class="breakdown-item">
-                <span>Incasso netto Commerciante (Climawell):</span>
-                <strong id="breakdownNetToConnected">€ 0,00</strong>
-              </div>
-              <div class="breakdown-item">
-                <span>Fee Servizio Piattaforma SaaS (Daniele Lupi):</span>
-                <span id="breakdownFeeAmount">€ 0,00</span>
-              </div>
-            </div>
-
-            <button type="button" class="btn-stripe-pay" id="btnStripeDirectPay">
-              <span class="btn-pay-spinner hidden" id="stripePaySpinner"></span>
-              <span id="btnStripePayLabel">💳 Paga Subito € 0,00 (Con Sconto Extra)</span>
+            <button type="button" class="btn-submit-order" id="btnSwitchToBankTransfer" style="background:#0284c7; width:auto; padding:12px 28px; display:inline-block; font-size:0.92rem; border-radius:8px;">
+              🏦 Passa a Bonifico Anticipato (Sconto Extra -4% Attivo)
             </button>
-
-            <div class="stripe-security-notice">
-              🔒 <strong>Vantaggio Pagamento Immediato:</strong> Ordine approvato istantaneamente con priorità di spedizione e Sconto Extra applicato in fattura.
-            </div>
           </div>
         </div>
 
-        <!-- 2. SEZIONE BONIFICO BANCARIO ANTICIPATO -->
-        <div class="assisted-order-section hidden" id="prepaidBankCheckoutSection">
+        <!-- 2. SEZIONE BONIFICO BANCARIO ANTICIPATO (ATTIVA DI DEFAULT) -->
+        <div class="assisted-order-section" id="prepaidBankCheckoutSection">
           <div class="form-section-box" style="background:#f0fdf4; border-color:#86efac;">
             <div class="form-section-title" style="color:#166534;">🏦 Pagamento con Bonifico Bancario Anticipato (Sconto Extra Attivo)</div>
             <p style="font-size:0.8rem; color:#14532d; margin-bottom:8px;">
@@ -970,7 +893,7 @@
               <div><strong>Causale:</strong> Ordine E-COM + Ragione Sociale / Nome</div>
             </div>
             <button type="button" class="btn-stripe-pay" id="btnConfirmPrepaidBank" style="background:#059669;">
-              ✅ Conferma Ordine con Bonifico Anticipato
+              ✅ Conferma Ordine con Bonifico Anticipato (Sconto Extra -4%)
             </button>
           </div>
         </div>
@@ -1023,7 +946,7 @@
               <span class="icon">✉️</span>
               <div>
                 <strong>Invia Ordine via Email</strong>
-                <small>Notifica ufficiale a ordini@climawell.it</small>
+                <small>Notifica ufficiale a commerciale@climawell.it</small>
               </div>
             </button>
           </div>
