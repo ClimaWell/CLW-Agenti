@@ -512,7 +512,7 @@
       const client = initClient();
       if (client) {
         try {
-          const targetCols = 'id, number, document_type, status, customer_name, customer_code, agent_code, total_net, total_gross, created_at, plus_doc_id, notes, shipping_city, carrier_name';
+          const targetCols = 'id, number, document_type, status, customer_name, customer_code, agent_code, subtotal, vat_total, total, created_at, plus_doc_id, notes';
           const { data, error } = await client
             .from('documents')
             .select(targetCols)
