@@ -82,6 +82,24 @@
     }
   }
 
+  // --- Smart Cache TTL Helpers (Abbattimento Radicale Egress Frontend) ---
+  const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore di validità cache locale
+
+  function isCacheFresh(key) {
+    try {
+      const ts = parseInt(localStorage.getItem('clw_cache_ts_' + key) || '0', 10);
+      return (Date.now() - ts) < CACHE_TTL_MS;
+    } catch {
+      return false;
+    }
+  }
+
+  function touchCache(key) {
+    try {
+      localStorage.setItem('clw_cache_ts_' + key, String(Date.now()));
+    } catch {}
+  }
+
   // --- Core Data Service ---
   const ClwData = {
     isConfigured() {
@@ -93,46 +111,75 @@
     getConfig: getSupabaseConfig,
 
     /**
-     * Recupera il catalogo articoli (con cache locale automatica)
+     * Recupera il catalogo articoli (con cache locale intelligente e zero spreco di banda)
      */
     async getProducts(options = {}) {
-      const client = initClient();
-      if (client) {
-        try {
-          if (options.search) {
-            const s = options.search.trim();
+      // 1. Ricerca specifica per testo: cerca prima in memoria locale (0 ms, 0 bytes Egress)
+      if (options.search) {
+        const s = options.search.trim().toLowerCase();
+        const localProds = await getLocalCache('products');
+        if (localProds && localProds.length > 0) {
+          const sClean = s.replace(/\s+/g, '');
+          const matches = localProds.filter(p => {
+            const code = String(p.code || '').toLowerCase();
+            const desc = String(p.description || '').toLowerCase();
+            const bar = String(p.barcode || '').toLowerCase();
+            const brand = String(p.brand || '').toLowerCase();
+            return code.includes(s) || code.includes(sClean) || desc.includes(s) || bar.includes(s) || brand.includes(s);
+          }).slice(0, options.limit || 50);
+          if (matches.length > 0) return matches;
+        }
+
+        const client = initClient();
+        if (client) {
+          try {
             const sNoSpace = s.replace(/\s+/g, '');
             const orConditions = [
               `code.ilike.%${s}%`,
               `code.ilike.%${sNoSpace}%`,
               `description.ilike.%${s}%`,
               `barcode.ilike.%${s}%`,
-              `barcode.ilike.%${sNoSpace}%`,
               `brand.ilike.%${s}%`
             ].join(',');
 
             const { data, error } = await client
               .from('products')
-              .select('*')
+              .select('code, description, price, stock_qty, available_qty, um, brand, barcode, primary_location, image_ref, image_url, discount_family, max_discount, active')
               .eq('active', true)
               .or(orConditions)
-              .limit(options.limit || 50);
+              .limit(options.limit || 30);
 
-            if (error) throw error;
-            return data || [];
+            if (!error && data) return data;
+          } catch (err) {
+            console.warn('[Supabase] Errore ricerca prodotti:', err.message);
           }
+        }
+        return [];
+      }
 
-          // Scaricamento catalogo completo con paginazione a blocchi di 1.000 (bypass limite PostgREST)
+      // 2. Cache-First: se non è richiesta ricarica forzata e la cache locale è valida (< 6h), usa i dati locali (0 bytes di rete!)
+      if (!options.forceRefresh && isCacheFresh('products')) {
+        const cached = await getLocalCache('products');
+        if (cached && cached.length > 0) {
+          return cached;
+        }
+      }
+
+      // 3. Scaricamento ottimizzato con colonne mirate (solo se cache assente, scaduta o forceRefresh=true)
+      const client = initClient();
+      if (client) {
+        try {
           let allProds = [];
           let from = 0;
           const chunkSize = 1000;
-          const maxLimit = options.limit || 50000;
+          const maxLimit = options.limit || 20000;
+          const targetCols = 'code, description, price, stock_qty, available_qty, um, brand, barcode, primary_location, image_ref, image_url, discount_family, max_discount, active';
 
           while (from < maxLimit) {
             const to = Math.min(from + chunkSize - 1, maxLimit - 1);
             const { data, error } = await client
               .from('products')
-              .select('*')
+              .select(targetCols)
               .eq('active', true)
               .order('code', { ascending: true })
               .range(from, to);
@@ -145,7 +192,8 @@
           }
 
           if (allProds.length) {
-            setLocalCache('products', allProds);
+            await setLocalCache('products', allProds);
+            touchCache('products');
             return allProds;
           }
         } catch (err) {
@@ -256,23 +304,31 @@
     },
 
     /**
-     * Recupera l'elenco dei clienti
+     * Recupera l'elenco dei clienti (Cache-First intelligente, 0 Egress su reload)
      */
-    async getCustomers() {
+    async getCustomers(options = {}) {
+      // 1. Cache-First: usa subito la cache se valida (< 6h) e non forzata
+      if (!options.forceRefresh && isCacheFresh('customers')) {
+        const cached = await getLocalCache('customers');
+        if (cached && cached.length > 0) {
+          return cached;
+        }
+      }
+
       const client = initClient();
       if (client) {
         try {
-          // Paginazione a blocchi di 1.000 per bypassare il limite di 1.000 record di Supabase PostgREST
           let allCust = [];
           let from = 0;
           const chunkSize = 1000;
-          const maxLimit = 30000;
+          const maxLimit = options.limit || 15000;
+          const targetCols = 'code, name, address, city, province, postal_code, phone, email, vat_number, tax_code, sdi_code, agent_code, payment_method, iban';
 
           while (from < maxLimit) {
             const to = from + chunkSize - 1;
             const { data, error } = await client
               .from('customers')
-              .select('*')
+              .select(targetCols)
               .order('name', { ascending: true })
               .range(from, to);
 
@@ -284,7 +340,8 @@
           }
 
           if (allCust.length) {
-            setLocalCache('customers', allCust);
+            await setLocalCache('customers', allCust);
+            touchCache('customers');
             return allCust;
           }
         } catch (err) {
@@ -339,13 +396,17 @@
      * Recupera l'elenco ufficiale degli agenti da Supabase (sincronizzati da Plus 2000)
      * Esclude categoricamente gli agenti disattivati (colonna 'attivo' o 'active' a False)
      */
-    async getAgents() {
+    async getAgents(options = {}) {
+      if (!options.forceRefresh && isCacheFresh('agents')) {
+        const cached = await getLocalCache('agents');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+      }
       const client = initClient();
       if (client) {
         try {
           const { data, error } = await client
             .from('agents')
-            .select('*')
+            .select('code, name, email, phone, active')
             .order('name', { ascending: true });
           if (!error && Array.isArray(data) && data.length) {
             // Esclude solo i record tecnici o di servizio non operativi
@@ -355,7 +416,8 @@
               if (blacklist.some(k => nameUpper.includes(k))) return false;
               return true;
             });
-            setLocalCache('agents', activeAgents);
+            await setLocalCache('agents', activeAgents);
+            touchCache('agents');
             return activeAgents;
           }
         } catch (err) {
@@ -439,27 +501,28 @@
     },
 
     /**
-     * Recupera tutte le offerte e gli ordini da Supabase (con cache IndexedDB)
+     * Recupera le offerte e gli ordini da Supabase (con cache e limite record per risparmio banda)
      */
-    async getDocuments() {
+    async getDocuments(options = {}) {
+      if (!options.forceRefresh && isCacheFresh('documents')) {
+        const cached = await getLocalCache('documents');
+        if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+      }
+
       const client = initClient();
       if (client) {
         try {
+          const targetCols = 'id, number, document_type, status, customer_name, customer_code, agent_code, total_net, total_gross, created_at, plus_doc_id, notes, shipping_city, carrier_name';
           const { data, error } = await client
             .from('documents')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select(targetCols)
+            .order('created_at', { ascending: false })
+            .limit(options.limit || 150);
+
           if (!error && Array.isArray(data)) {
-            setLocalCache('documents', data).catch(() => {});
+            await setLocalCache('documents', data);
+            touchCache('documents');
             return data;
-          }
-          if (error) {
-            console.warn('[Supabase] Tentativo getDocuments fallback:', error.message);
-            const res2 = await client.from('documents').select('*');
-            if (!res2.error && Array.isArray(res2.data)) {
-              setLocalCache('documents', res2.data).catch(() => {});
-              return res2.data;
-            }
           }
         } catch (err) {
           console.warn('[Supabase] Errore documents:', err.message);
