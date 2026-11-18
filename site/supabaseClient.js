@@ -1427,6 +1427,104 @@
         }
       }
       return [];
+    },
+
+    // --- COMMERCIAL HUB: MARKETPLACE AMAZON FBM ---
+    async getAmazonConfig() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_config').select('*').limit(1);
+          if (!error && data && data.length > 0) return data[0];
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore getAmazonConfig:', e);
+        }
+      }
+      return { marketplace_id: 'APJ6JRA9NG5V4', default_shipping_cost: 6.90, default_fee_pct: 15.0, default_safety_stock: 1 };
+    },
+
+    async saveAmazonConfig(cfg) {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_config').upsert(cfg).select();
+          if (error) throw error;
+          return (data && data[0]) || cfg;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore saveAmazonConfig:', e);
+          throw e;
+        }
+      }
+      return cfg;
+    },
+
+    async getAmazonListings() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_listings').select('*').order('created_at', { ascending: false });
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore getAmazonListings:', e);
+        }
+      }
+      return [];
+    },
+
+    async saveAmazonListing(listing) {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_listings').upsert(listing, { onConflict: 'sku' }).select();
+          if (error) throw error;
+          return (data && data[0]) || listing;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore saveAmazonListing:', e);
+          throw e;
+        }
+      }
+      return listing;
+    },
+
+    async deleteAmazonListing(id) {
+      const client = initClient();
+      if (client) {
+        try {
+          await client.from('hub_amazon_listings').delete().eq('id', id);
+          return true;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore deleteAmazonListing:', e);
+        }
+      }
+      return false;
+    },
+
+    async getAmazonOrders() {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_orders').select('*').order('purchase_date', { ascending: false });
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore getAmazonOrders:', e);
+        }
+      }
+      return [];
+    },
+
+    async updateAmazonOrderStatus(orderId, patch) {
+      const client = initClient();
+      if (client) {
+        try {
+          const { data, error } = await client.from('hub_amazon_orders').update(patch).eq('amazon_order_id', orderId).select();
+          if (error) throw error;
+          return data;
+        } catch (e) {
+          console.warn('[Hub Amazon] Errore updateAmazonOrderStatus:', e);
+          throw e;
+        }
+      }
+      return null;
     }
   };
 
