@@ -736,6 +736,7 @@
         <div class="filter-pills-bar">
           <button type="button" class="filter-pill-btn active" data-filter="all">Tutti gli aperti</button>
           <button type="button" class="filter-pill-btn" data-filter="ready">🟢 Materiale Pronto (100%)</button>
+          <button type="button" class="filter-pill-btn" data-filter="positive">🟡 Giacenza Positiva (&gt; 0)</button>
           <button type="button" class="filter-pill-btn" data-filter="in_progress">📦 In Preparazione Magazzino</button>
           <button type="button" class="filter-pill-btn" data-filter="to_assign">⏳ Da Assegnare a Magazzino</button>
         </div>
@@ -1228,6 +1229,8 @@
       let filtered = enrichedOrders;
       if (filter === 'ready') {
         filtered = enrichedOrders.filter(o => o.stockInfo.is100Ready);
+      } else if (filter === 'positive') {
+        filtered = enrichedOrders.filter(o => o.stockInfo.is100Ready || o.stockInfo.isPartialReady);
       } else if (filter === 'in_progress') {
         filtered = enrichedOrders.filter(o => o.status === 'In Preparazione');
       } else if (filter === 'to_assign') {
