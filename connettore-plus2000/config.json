@@ -1,0 +1,54 @@
+{
+  "sql_server": {
+    "dsn": "climawell",
+    "driver": "SQL Server",
+    "server": "SRVPLUS",
+    "database": "Climawell",
+    "trusted_connection": "yes",
+    "username": "sa",
+    "password": ""
+  },
+  "google_sheets": {
+    "spreadsheet_id": "10hp34cPu6ZxzPwSbrlIFsr_WcQTaIwBmJUUQjFZc2nw",
+    "tab_tes": "DocTes",
+    "tab_rig": "DocRig",
+    "clienti_spreadsheet_id": "1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8",
+    "clienti_tab": "clienti",
+    "service_account_file": "service_account.json"
+  },
+  "sync": {
+    "interval_seconds": 60,
+    "auto_confirm_doc": true
+  },
+  "export_clienti": {
+    "spreadsheet_id": "1Ui3W6-jVIww7QgTtnXaywJj2ZyQiiaHAd92Xl5KRrD8",
+    "tab_name": "clienti",
+    "filtro_anno_minimo": 2024,
+    "includi_nuovi_inseriti": true
+  },
+  "export_articoli": {
+    "spreadsheet_id": "1g6zrWK_zZJZ82kdoNgda9KuoemYlSs0XGRRfJvoOvUk",
+    "tab_name": "q_listino_prezzi_catalogo",
+    "listino": "VEN1",
+    "filtro_attivi": true
+  },
+  "supabase": {
+    "url": "https://fadgdncfhfpwkcbxcntc.supabase.co",
+    "service_role_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhZGdkbmNmaGZwd2tjYnhjbnRjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg3NjM5MiwiZXhwIjoyMTA3NDUyMzkyfQ.PuSynWNvrTEsZnh4iSfMbO_3lMH-pWZojYY6ZWQ5-ls",
+    "anon_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhZGdkbmNmaGZwd2tjYnhjbnRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NzYzOTIsImV4cCI6MjEwNzQ1MjM5Mn0.ucGTqDigQVa6ZkBTH3l8Rvo7JHF7RVxvEv-3NGcMlfo"
+  },
+  "packlink": {
+    "api_key": "00a55a9cede7debe5e5badeaf0ac9a695044679a593c0405cb12413b3e6e8114",
+    "environment": "production",
+    "sender": {
+      "name": "Climawell S.r.l.",
+      "company": "Climawell S.r.l.",
+      "street1": "Via Pratese",
+      "city": "Firenze",
+      "zip_code": "50145",
+      "country": "IT",
+      "phone": "0554289074",
+      "email": "logistica@climawell.it"
+    }
+  }
+}
