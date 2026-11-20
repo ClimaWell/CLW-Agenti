@@ -15,7 +15,7 @@
 
   const PacklinkConfig = {
     getApiKey() {
-      return localStorage.getItem(STORAGE_KEY_API_KEY) || '';
+      return localStorage.getItem(STORAGE_KEY_API_KEY) || '00a55a9cede7debe5e5badeaf0ac9a695044679a593c0405cb12413b3e6e8114';
     },
     setApiKey(key) {
       if (key) localStorage.setItem(STORAGE_KEY_API_KEY, key.trim());
@@ -323,3 +323,4 @@
   window.PacklinkService = PacklinkService;
 
 })(window);
+
