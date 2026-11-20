@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Climawell - Magazzino & Inventario Plus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Libreria Barcode scanner HTML5 per fotocamera cellulare con fallback -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    if (typeof Html5Qrcode === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body class="dark-theme">
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">📦</div>
+        <div>
+          <h1 class="brand-title">CLIMAWELL LOGISTICA</h1>
+          <div class="brand-subtitle">Inventario & Ubicazioni Plus2000</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-qr-modal" class="btn-icon" title="Mostra QR Code per smartphone" aria-label="QR Code">
+          📱
+        </button>
+        <button id="btn-theme-toggle" class="btn-icon" title="Cambia Tema" aria-label="Tema">
+          🌙
+        </button>
+        <div class="terminal-badge" id="terminal-badge" title="Identificativo Terminale">
+          Terminale: <strong id="terminal-id-label">003</strong>
+        </div>
+      </div>
+    </header>
+
+    <!-- STATUS BAR -->
+    <div class="system-status-bar">
+      <div class="status-indicator online" id="sql-status">
+        <span class="dot"></span>
+        <span class="text" id="sql-status-text">Connesso a SQL Server (SRVPLUS)</span>
+      </div>
+      <div class="today-count-badge" id="btn-toggle-history">
+        Righe oggi: <strong id="today-records-count">0</strong> 📋
+      </div>
+    </div>
+
+    <!-- MENU DI NAVIGAZIONE A SCHEDE (DESKTOP E TOUCH) -->
+    <nav class="app-nav-tabs" id="appNavTabs">
+      <button type="button" class="nav-tab-btn active" data-tab="inventario">
+        📦 <span>Inventario &amp; Barcode</span>
+      </button>
+      <button type="button" class="nav-tab-btn" data-tab="giro-cliente">
+        🛒 <span>Giro Cliente &amp; Banco</span>
+        <span class="nav-tab-badge" id="navBadgeGiroCart" style="display:none; background:#10b981; color:#fff;">0</span>
+      </button>
+      <button type="button" class="nav-tab-btn" data-tab="picking">
+        🎯 <span>Lavorazione Ordini</span>
+        <span class="nav-tab-badge" id="navBadgeReady">0 Pronti</span>
+      </button>
+      <button type="button" class="nav-tab-btn" data-tab="scaffali">
+        📍 <span>Scaffali &amp; Ubicazioni</span>
+      </button>
+      <button type="button" class="nav-tab-btn" data-tab="storico">
+        📋 <span>Movimenti Oggi</span>
+      </button>
+    </nav>
+
+    <!-- INPUT FOTOCAMERA NATIVA PER SMARTPHONE (Funziona ovunque su LAN e HTTP) -->
+    <input type="file" id="camera-file-input" accept="image/*" capture="environment" style="display: none;">
+    <div id="qr-file-reader-dummy" style="display: none;"></div>
+
+    <!-- ====================================================================
+         PANEL 1: INVENTARIO & CONTEGGIO BARCODE
+         ==================================================================== -->
+    <div id="panel-inventario" class="tab-panel active">
+
+      <!-- TOOLBAR MODALITA' INVENTARIO -->
+      <div class="inventory-toolbar card">
+        <div class="toolbar-title-row">
+          <span class="toolbar-badge">⚡ Inventario Rapido Plus</span>
+          <div class="toolbar-toggles">
+            <label class="toggle-pill" title="Ogni scansione aggiunge +1 ed esegue il salvataggio automatico in WinCeInv">
+              <input type="checkbox" id="chk-fast-count">
+              <span class="toggle-track"></span>
+              <span class="toggle-label">Scan Continuo (+1)</span>
+            </label>
+            <label class="toggle-pill" title="Mantiene l'ubicazione memorizzata per tutte le scansioni successive sullo stesso scaffale">
+              <input type="checkbox" id="chk-lock-ubi">
+              <span class="toggle-track"></span>
+              <span class="toggle-label">🔒 Blocca Scaffale</span>
+            </label>
+          </div>
+        </div>
+        <div class="toolbar-actions-row">
+          <button type="button" id="btn-open-ubi-inventory" class="btn-tool">
+            📍 Inventario per Scaffale / Ubicazione
+          </button>
+          <a href="/api/inventario/esporta" download class="btn-tool btn-tool-accent" id="btn-export-csv" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+            📥 Esporta CSV Inventario
+          </a>
+        </div>
+      </div>
+
+      <!-- STATISTICHE SESSIONE INVENTARIO OGGI -->
+      <div class="inventory-kpi-bar card" id="inventory-kpi-bar">
+        <div class="inv-kpi-item">
+          <div class="inv-kpi-num" id="kpi-tot-righe">0</div>
+          <div class="inv-kpi-lbl">Articoli Contati</div>
+        </div>
+        <div class="inv-kpi-item">
+          <div class="inv-kpi-num" id="kpi-tot-pezzi">0</div>
+          <div class="inv-kpi-lbl">Pezzi Rilevati</div>
+        </div>
+        <div class="inv-kpi-item kpi-diff" id="kpi-box-diff">
+          <div class="inv-kpi-num" id="kpi-con-diff">0</div>
+          <div class="inv-kpi-lbl">⚠️ Con Differenza</div>
+        </div>
+        <div class="inv-kpi-item kpi-ok">
+          <div class="inv-kpi-num" id="kpi-allineati">0</div>
+          <div class="inv-kpi-lbl">🟢 Allineati</div>
+        </div>
+      </div>
+
+      <!-- SCANNER / SEARCH BAR -->
+      <section class="search-section card">
+        <div class="search-header">
+          <label for="barcode-input">Scansiona o cerca articolo</label>
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-snap-photo" class="btn-camera btn-snap" title="Scatta foto nitida col cellulare (funziona al 100% anche su HTTP)">
+              📸 <span>Scatta Foto</span>
+            </button>
+            <button id="btn-start-camera" class="btn-camera" title="Avvia mirino video continuo">
+              📹 <span>Video Live</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="input-with-action">
+          <button type="button" id="btn-search-trigger" class="btn-search-trigger" title="Avvia ricerca">🔍</button>
+          <input 
+            type="text" 
+            id="barcode-input" 
+            class="barcode-input" 
+            placeholder="Spara barcode o digita codice (es. MS230)..."
+            autocomplete="off"
+            autofocus
+          >
+          <button type="button" id="btn-clear-search" class="btn-clear" style="display: none;">✕</button>
+          <button type="button" id="btn-submit-search" class="btn-submit-search" title="Cerca articolo">Cerca</button>
+        </div>
+
+        <!-- Suggerimenti rapidi o lista risultati multipli -->
+        <div id="search-dropdown" class="search-dropdown" style="display: none;"></div>
+      </section>
+
+      <!-- SCHEDA ARTICOLO SELEZIONATO -->
+      <main id="article-card" class="article-card card" style="display: none;">
+        
+        <!-- INTESTAZIONE ARTICOLO -->
+        <div class="article-header">
+          <div>
+            <div class="article-brand-tag" id="art-brand">MARCA</div>
+            <h2 class="article-code" id="art-code">CODICE</h2>
+            <div class="article-desc" id="art-desc">Descrizione completa dell'articolo</div>
+          </div>
+          <div class="article-caid-badge">
+            CaId: <span id="art-caid">0</span>
+          </div>
+        </div>
+
+        <!-- KPI GIACENZA ATTUALE DA PLUS -->
+        <div class="kpi-grid">
+          <div class="kpi-card stock-card">
+            <div class="kpi-label">📊 Esistenza Fisica Plus</div>
+            <div class="kpi-value-group">
+              <span class="kpi-value" id="art-stock">0</span>
+              <span class="kpi-um" id="art-um-label">NR</span>
+            </div>
+            <div class="kpi-sub" id="art-disp-sub">Disponibile: - | Impegnato: -</div>
+          </div>
+
+          <div class="kpi-card diff-card" id="diff-card">
+            <div class="kpi-label">⚖️ Differenza Rilevata</div>
+            <div class="kpi-value-group">
+              <span class="kpi-value" id="diff-value">0</span>
+              <span class="kpi-um" id="diff-um-label">NR</span>
+            </div>
+            <div class="kpi-sub" id="diff-status-text">Quantità allineata</div>
+          </div>
+        </div>
+
+        <!-- SEZIONE UBICAZIONE (VISUALIZZA + SCANSIONA NUOVA) -->
+        <div class="form-group location-group">
+          <div class="group-label-row">
+            <label for="ubi-input">
+              📍 Ubicazione a Scaffale 
+              <span class="ubi-plus-tag">Attuale in Plus: <strong id="current-ubi-label">-</strong></span>
+            </label>
+            <button type="button" id="btn-scan-shelf" class="btn-shelf-scan">
+              📷 Scansiona Scaffale
+            </button>
+          </div>
+          
+          <div class="ubi-input-wrapper">
+            <input 
+              type="text" 
+              id="ubi-input" 
+              class="form-control mono-font" 
+              placeholder="es. A-02-04" 
+              autocomplete="off"
+            >
+            <button type="button" id="btn-reset-ubi" class="btn-subtle" title="Ripristina originale">Ripristina</button>
+          </div>
+          
+          <label class="checkbox-container">
+            <input type="checkbox" id="chk-sync-ubi" checked>
+            <span class="checkmark"></span>
+            <span class="chk-label">Aggiorna ubicazione nell'anagrafica di Plus2000</span>
+          </label>
+        </div>
+
+        <!-- SEZIONE CONTEGGIO QUANTITA' -->
+        <div class="form-group qty-group">
+          <label for="qty-input">🔢 Quantità Reale Contata (<span id="qty-um-label">NR</span>)</label>
+          
+          <div class="qty-stepper">
+            <button type="button" class="btn-step" id="btn-step-minus" aria-label="Diminuisci">-</button>
+            <input 
+              type="number" 
+              id="qty-input" 
+              class="qty-input mono-font" 
+              step="1" 
+              min="0" 
+              value="0"
+            >
+            <button type="button" class="btn-step" id="btn-step-plus" aria-label="Aumenta">+</button>
+          </div>
+
+          <!-- Scorciatoie rapide incremento -->
+          <div class="quick-chips">
+            <button type="button" class="chip" data-add="1">+1</button>
+            <button type="button" class="chip" data-add="5">+5</button>
+            <button type="button" class="chip" data-add="10">+10</button>
+            <button type="button" class="chip" data-add="50">+50</button>
+            <button type="button" class="chip chip-action" id="btn-match-stock">Uguaglia Giacenza</button>
+          </div>
+        </div>
+
+        <!-- NOTE / CAUSALE OPZIONALE -->
+        <div class="form-group notes-group">
+          <label for="notes-input">📝 Note / Motivo (opzionale)</label>
+          <input 
+            type="text" 
+            id="notes-input" 
+            class="form-control" 
+            placeholder="es. Confezione rovinata, conteggio pallet..."
+          >
+        </div>
+
+        <!-- TASTI AZIONE -->
+        <div class="action-buttons">
+          <button type="button" id="btn-save-inventory" class="btn-primary-lg">
+            <span class="btn-icon-inner">💾</span>
+            <span class="btn-text-inner">REGISTRA INVENTARIO (WinCeInv)</span>
+          </button>
+          <button type="button" id="btn-cancel-article" class="btn-secondary">
+            Annulla
+          </button>
+        </div>
+
+      </main>
+
+      <!-- STATO EMPTY / ISTRUZIONI -->
+      <div id="empty-state" class="empty-state card">
+        <div class="empty-icon">🎯</div>
+        <h3>Pronto per la Scansione</h3>
+        <p>
+          Inquadra il codice a barre con la fotocamera oppure spara con la pistola barcode.
+        </p>
+        <div class="features-list">
+          <div class="feature-item">⚡ <strong>Lettura istantanea</strong> da database Plus2000</div>
+          <div class="feature-item">📍 <strong>Verifica o sposta</strong> ubicazione scaffale</div>
+          <div class="feature-item">📈 <strong>Calcolo differenze</strong> immediato</div>
+          <div class="feature-item">✅ <strong>Scrittura diretta</strong> nella tabella di rettifica</div>
+        </div>
+      </div>
+
+    </div> <!-- Fine #panel-inventario -->
+
+    <!-- ====================================================================
+         PANEL: GIRO CLIENTE & BANCO (CREAZIONE ORDINE OCL SU PLUS 2000)
+         ==================================================================== -->
+    <div id="panel-giro-cliente" class="tab-panel">
+      
+      <!-- INTESTAZIONE GIRO BANCO -->
+      <section class="card" style="border-left: 4px solid #10b981; margin-bottom: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h2 style="margin:0; font-size:1.15rem; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+              <span>🛒</span> Giro Magazzino con Cliente
+            </h2>
+            <p style="margin:4px 0 0; font-size:0.83rem; color:var(--text-dim);">
+              Accompagna il cliente tra gli scaffali: scansiona i barcode, inserisci i pezzi e genera direttamente l'Ordine Cliente in Plus 2000.
+            </p>
+          </div>
+          <div id="giroCartCounterBadge" class="nav-tab-badge" style="background:#10b981; color:#fff; font-size:0.85rem; padding:4px 10px;">
+            0 Articoli nel carrello
+          </div>
+        </div>
+      </section>
+
+      <!-- FASE 1: SELEZIONE RAPIDA CLIENTE -->
+      <section class="card" id="giroCustomerSection" style="margin-bottom: 14px;">
+        <!-- STATO A: NESSUN CLIENTE SELEZIONATO -->
+        <div id="giroCustomerSearchWrapper">
+          <label style="display:block; font-weight:700; font-size:0.88rem; margin-bottom:6px; color:#10b981;">
+            1️⃣ Seleziona il Cliente da accompagnare:
+          </label>
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input type="text" id="giroCustomerSearchInput" class="form-control" 
+              placeholder="Digita lettere ragione sociale o codice (es. termo, rossi, 014)..." 
+              autocomplete="off" style="flex:1; font-size:0.95rem;">
+            <button type="button" id="btnGiroSearchCustomer" class="btn-primary" style="padding:8px 16px; background:#10b981; border-color:#059669;">
+              🔍 Cerca
+            </button>
+          </div>
+          <div id="giroCustomerResultsList" style="max-height:220px; overflow-y:auto; display:none; background:var(--bg-card-sub); border:1px solid var(--border-color); border-radius:8px; padding:6px;">
+            <!-- Risultati ricerca popolati via JS -->
+          </div>
+        </div>
+
+        <!-- STATO B: CLIENTE ATTIVO SELEZIONATO -->
+        <div id="giroCustomerSelectedCard" style="display:none; background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+            <div>
+              <span style="font-size:0.75rem; text-transform:uppercase; font-weight:800; color:#10b981; letter-spacing:0.5px;">👤 Cliente In Accompagnamento:</span>
+              <div id="giroActiveCustomerName" style="font-size:1.1rem; font-weight:800; color:var(--text-main); margin-top:2px;">-</div>
+              <div id="giroActiveCustomerDetails" style="font-size:0.82rem; color:var(--text-dim); margin-top:2px;">-</div>
+            </div>
+            <button type="button" id="btnGiroChangeCustomer" class="btn-tool" style="font-size:0.8rem; padding:4px 10px; background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color);">
+              🔄 Cambia Cliente
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- FASE 2: SCANSIONE BARCODE ARTICOLO (Abilitata se cliente selezionato) -->
+      <section class="card" id="giroScanSection" style="margin-bottom: 14px; opacity:0.5; pointer-events:none;">
+        <label style="display:block; font-weight:700; font-size:0.88rem; margin-bottom:6px; color:#10b981;">
+          2️⃣ Scansiona Barcode o Articolo sullo scaffale:
+        </label>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <input type="text" id="giroBarcodeInput" class="form-control mono-font" 
+            placeholder="Spara barcode scaffale/scatola o codice articolo..." 
+            autocomplete="off" style="flex:1; font-size:1.05rem; font-weight:700;">
+          <button type="button" id="btnGiroCameraScan" class="btn-primary" style="padding:8px 14px; background:#0f766e; border-color:#0d9488;" title="Attiva fotocamera cellulare">
+            📷 Fotocamera
+          </button>
+        </div>
+
+        <!-- BOX ANTEPRIMA ARTICOLO TROVATO & INSERIMENTO PEZZI -->
+        <div id="giroArticlePreviewCard" style="display:none; background:var(--bg-card-sub); border:1px solid var(--border-color); border-radius:10px; padding:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+            <div>
+              <span id="giroPrevBrand" class="role-badge" style="background:#0f766e; color:#fff; font-size:0.75rem; padding:2px 6px; border-radius:4px;">MARCA</span>
+              <span id="giroPrevCode" style="font-family:var(--font-mono); font-weight:800; font-size:1.05rem; color:var(--text-main); margin-left:6px;">CODICE</span>
+            </div>
+            <span id="giroPrevUbiBadge" style="background:#3b82f6; color:#fff; font-weight:700; font-size:0.8rem; padding:3px 8px; border-radius:6px;">📍 SCAFFALE: -</span>
+          </div>
+          <div id="giroPrevDesc" style="font-size:0.92rem; color:var(--text-main); font-weight:600; margin-bottom:8px;">Descrizione articolo...</div>
+          
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; font-size:0.85rem; color:var(--text-dim);">
+            <span>Giacenza attuale: <strong id="giroPrevStock" style="color:#10b981;">0 PZ</strong></span>
+          </div>
+
+          <!-- SELETTORE QUANTITA' PEZZI -->
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <span style="font-weight:700; font-size:0.88rem; color:var(--text-main);">Pezzi da prelevare:</span>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <button type="button" class="btn-tool" id="btnGiroQtyMinus" style="padding:6px 12px; font-size:1.1rem; font-weight:700;">-</button>
+              <input type="number" id="giroInputQty" value="1" min="1" step="1" style="width:65px; text-align:center; font-weight:800; font-size:1.1rem; padding:6px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-main);">
+              <button type="button" class="btn-tool" id="btnGiroQtyPlus" style="padding:6px 12px; font-size:1.1rem; font-weight:700;">+</button>
+            </div>
+            <button type="button" class="btn-tool" id="btnGiroQtyQuick5" style="padding:6px 8px; font-size:0.8rem;">+5</button>
+            <button type="button" class="btn-tool" id="btnGiroQtyQuick10" style="padding:6px 8px; font-size:0.8rem;">+10</button>
+            <span id="giroPrevUm" style="font-weight:700; font-size:0.85rem; color:var(--text-dim);">PZ</span>
+          </div>
+
+          <button type="button" id="btnGiroAddToCart" class="btn-primary" style="width:100%; padding:10px; font-size:0.95rem; font-weight:700; background:#10b981; border-color:#059669; display:flex; justify-content:center; align-items:center; gap:8px;">
+            <span>➕</span> Metti nel Carrello Giro
+          </button>
+        </div>
+      </section>
+
+      <!-- FASE 3: CARRELLO ARTICOLI RACCOLTI & CREAZIONE ORDINE -->
+      <section class="card" id="giroCartSection" style="margin-bottom: 24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 style="margin:0; font-size:0.98rem; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+            <span>📦</span> Articoli Selezionati con il Cliente
+          </h3>
+          <button type="button" id="btnGiroClearCart" class="btn-tool" style="font-size:0.75rem; color:#ef4444; border-color:#fca5a5;" title="Svuota carrello">
+            🗑️ Svuota
+          </button>
+        </div>
+
+        <!-- LISTA RIGHE CARRELLO -->
+        <div id="giroCartItemsList" style="margin-bottom:14px;">
+          <div style="text-align:center; padding:24px 12px; color:var(--text-dim); font-size:0.88rem;">
+            Il carrello è vuoto. Seleziona il cliente e scansiona i barcode degli articoli per iniziare.
+          </div>
+        </div>
+
+        <!-- NOTE ORDINE (OPZIONALI) -->
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:0.8rem; font-weight:700; color:var(--text-dim); margin-bottom:4px;">
+            📝 Note Ordine (opzionale, es. Ritiro immediato, Destinazione, Note per il banco):
+          </label>
+          <input type="text" id="giroOrderNotes" class="form-control" placeholder="es. Ritiro al banco, cliente presente..." style="font-size:0.85rem;">
+        </div>
+
+        <!-- PULSANTE CREA ORDINE PLUS 2000 -->
+        <button type="button" id="btnGiroSubmitOrder" class="btn-primary" 
+          style="width:100%; padding:14px; font-size:1.05rem; font-weight:800; background:linear-gradient(135deg, #059669, #0d9488); border:none; box-shadow:0 4px 14px rgba(5,150,105,0.35); border-radius:10px; display:flex; justify-content:center; align-items:center; gap:10px;" disabled>
+          <span>🚀</span> Conferma &amp; Invia Ordine a Plus 2000 (OCL)
+        </button>
+      </section>
+
+    </div>
+
+    <!-- ====================================================================
+         PANEL 2: LAVORAZIONE ORDINI & PICKING (CON GIACENZA POSITIVA)
+         ==================================================================== -->
+    <div id="panel-picking" class="tab-panel">
+      
+      <!-- CONTROLLI E FILTRI ORDINI -->
+      <section class="card" style="margin-bottom: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin:0;">🎯 Lavorazione Ordini &amp; Picking</h2>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+              Ordini aperti su Plus 2000 • Filtra materiali con giacenza a magazzino
+            </div>
+          </div>
+          <button type="button" id="btn-refresh-orders" class="btn-subtle" style="display:inline-flex; align-items:center; gap:6px;">
+            🔄 <span>Aggiorna Ordini</span>
+          </button>
+        </div>
+
+        <!-- FILTRI GIACENZA TOUCH PER SMARTPHONE -->
+        <div class="picking-filter-row">
+          <button type="button" class="btn-filter-pill pill-green active" data-pick-filter="ready">
+            🟢 Materiale Pronto (100%)
+          </button>
+          <button type="button" class="btn-filter-pill pill-amber" data-pick-filter="positive">
+            🟡 Giacenza Positiva (&gt; 0)
+          </button>
+          <button type="button" class="btn-filter-pill" data-pick-filter="all">
+            ⚪ Tutti gli Aperti
+          </button>
+        </div>
+
+        <!-- SELEZIONE ORDINE DA LAVORARE -->
+        <div class="order-select-wrapper">
+          <label for="selOrderToPick" style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:6px; color:#cbd5e1;">
+            Seleziona Ordine Cliente da Preparare:
+          </label>
+          <select id="selOrderToPick" class="order-select">
+            <option value="">Caricamento ordini aperti in corso...</option>
+          </select>
+        </div>
+
+        <!-- INPUT SCANSIONE BARCODE RAPIDO PICKING -->
+        <div class="input-with-action">
+          <button type="button" id="btn-pick-scan-camera" class="btn-search-trigger" title="Scansiona con fotocamera">📷</button>
+          <input 
+            type="text" 
+            id="pickBarcodeInput" 
+            class="barcode-input" 
+            placeholder="Spara barcode articolo da prelevare..."
+            autocomplete="off"
+          >
+          <button type="button" id="btn-pick-barcode-submit" class="btn-submit-search">Preleva</button>
+        </div>
+      </section>
+
+      <!-- SCHEDA DETTAGLIO ORDINE SELEZIONATO -->
+      <div id="pickingOrderDetailCard" class="order-detail-card" style="display: none;">
+        <!-- Inserito dinamicamente da app.js -->
+      </div>
+
+      <!-- CHECKLIST RIGHE PERCORSO PRELIEVO -->
+      <div id="pickingLinesList">
+        <div class="empty-state card">
+          <div class="empty-icon">📋</div>
+          <h3>Nessun Ordine Selezionato</h3>
+          <p>Scegli un ordine dal menu in alto per visualizzare il percorso prelievo ordinato per scaffale.</p>
+        </div>
+      </div>
+
+      <!-- BARRA CONFERMA PICKING -->
+      <div id="pickingFooterCard" class="card" style="display:none; text-align:center; margin-top:14px; padding:16px;">
+        <div style="font-size:15px; font-weight:700; margin-bottom:10px; color:#fff;">
+          Avanzamento Prelievo: <span id="pickingProgressLabel" style="color:#38bdf8;">0 / 0</span>
+        </div>
+        <button type="button" id="btn-confirm-picking-done" class="btn-primary-lg" style="width:100%;">
+          ✅ CONFERMA PICKING &amp; SEGNA PREPARATO
+        </button>
+      </div>
+
+    </div> <!-- Fine #panel-picking -->
+
+    <!-- ====================================================================
+         PANEL 3: SCAFFALI & UBICAZIONI
+         ==================================================================== -->
+    <div id="panel-scaffali" class="tab-panel">
+      <section class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h2 style="font-size:1.15rem; font-weight:700; color:#fff; margin:0;">📍 Cerca per Scaffale / Ubicazione</h2>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="panel-ubi-search-input" class="form-control mono-font" placeholder="Digita o spara scaffale (es. A-02)..." style="flex:1;">
+          <button type="button" id="panel-btn-search-ubi" class="btn-primary" style="padding: 8px 16px;">Cerca</button>
+        </div>
+        <div id="panel-ubi-results-count" style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 8px;"></div>
+        <div id="panel-ubi-articles-list">
+          <div style="text-align: center; color: var(--text-dim); padding: 20px;">
+            Inserisci il codice di uno scaffale per visualizzare tutti gli articoli e le relative giacenze.
+          </div>
+        </div>
+      </section>
+    </div> <!-- Fine #panel-scaffali -->
+
+    <!-- ====================================================================
+         PANEL 4: MOVIMENTI E STORICO DI OGGI
+         ==================================================================== -->
+    <div id="panel-storico" class="tab-panel">
+      <!-- DRAWER / SEZIONE STORICO REGISTRAZIONI DI OGGI -->
+      <section class="history-section card" id="history-section">
+        <div class="history-header">
+          <div>
+            <h3>📋 Registrazioni Inventario Oggi (<span id="history-badge-count">0</span>)</h3>
+            <div class="history-filter-pills" style="display:flex; gap:6px; margin-top:6px;">
+              <button type="button" class="hist-pill active" data-filter="all">Tutti</button>
+              <button type="button" class="hist-pill pill-warn" data-filter="only_diff">⚠️ Solo Differenze</button>
+              <button type="button" class="hist-pill pill-ok" data-filter="aligned">🟢 Allineati</button>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <a href="/api/inventario/esporta" download class="btn-subtle" title="Scarica CSV" style="text-decoration:none;">📥 CSV</a>
+            <button id="btn-refresh-history" class="btn-subtle">Aggiorna 🔄</button>
+          </div>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="history-loading">Caricamento registrazioni...</div>
+        </div>
+      </section>
+    </div> <!-- Fine #panel-storico -->
+
+    <!-- MODALE INVENTARIO PER UBICAZIONE / SCAFFALE -->
+    <div id="ubi-modal" class="modal" style="display: none;">
+      <div class="modal-content ubi-modal-content">
+        <div class="modal-header">
+          <h3>📍 Inventario per Scaffale / Ubicazione</h3>
+          <button id="btn-close-ubi-modal" class="btn-close">✕</button>
+        </div>
+        <div class="ubi-modal-body" style="padding: 16px;">
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input type="text" id="ubi-search-input" class="form-control mono-font" placeholder="Digita o spara scaffale (es. A-02)..." style="flex:1;">
+            <button type="button" id="btn-search-ubi" class="btn-primary" style="padding: 8px 16px;">Cerca</button>
+          </div>
+          <div id="ubi-results-count" style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 8px;"></div>
+          <div id="ubi-articles-list" style="max-height: 55vh; overflow-y: auto;">
+            <div style="text-align: center; color: var(--text-dim); padding: 20px;">Inserisci il codice di uno scaffale per caricare tutti gli articoli presenti.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE QR CODE PER SMARTPHONE -->
+    <div id="qr-modal" class="modal" style="display: none;">
+      <div class="modal-content qr-modal-content">
+        <div class="modal-header">
+          <h3>📱 Apri su Smartphone / Tablet</h3>
+          <button id="btn-close-qr" class="btn-close">✕</button>
+        </div>
+        <div class="qr-body">
+          <p>Assicurati che il cellulare sia connesso al <strong>Wi-Fi aziendale</strong>.</p>
+          <div class="qr-img-wrapper" id="qr-code-container">
+            <!-- QR code generato via JS -->
+          </div>
+          <div class="network-links" id="network-links-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION TOUCH PER SMARTPHONE (FISSA IN BASSO) -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+      <button type="button" class="mobile-nav-btn active" data-tab="inventario">
+        <span class="nav-icon">📦</span>
+        <span>Inventario</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="giro-cliente">
+        <span class="nav-icon">🛒</span>
+        <span>Giro Banco</span>
+        <span class="mobile-badge" id="mobileBadgeGiroCart" style="display:none; background:#10b981;">0</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="picking">
+        <span class="nav-icon">🎯</span>
+        <span>Ordini</span>
+        <span class="mobile-badge" id="mobileBadgeReady">0</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="scaffali">
+        <span class="nav-icon">📍</span>
+        <span>Scaffali</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-tab="storico">
+        <span class="nav-icon">📋</span>
+        <span>Oggi</span>
+      </button>
+    </nav>
+
+    <!-- TOAST NOTIFICHE -->
+    <div id="toast-container" class="toast-container"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

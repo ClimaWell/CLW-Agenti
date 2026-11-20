@@ -736,6 +736,7 @@
         <div class="filter-pills-bar">
           <button type="button" class="filter-pill-btn active" data-filter="all">Tutti gli aperti</button>
           <button type="button" class="filter-pill-btn" data-filter="ready">🟢 Materiale Pronto (100%)</button>
+          <button type="button" class="filter-pill-btn" data-filter="positive">🟡 Giacenza Positiva (&gt; 0)</button>
           <button type="button" class="filter-pill-btn" data-filter="in_progress">📦 In Preparazione Magazzino</button>
           <button type="button" class="filter-pill-btn" data-filter="to_assign">⏳ Da Assegnare a Magazzino</button>
         </div>
@@ -844,7 +845,9 @@
         </p>
 
         <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:6px;">Seleziona Cliente Presente al Banco:</label>
-        <select id="selCounterCustomer" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--border); font-size:0.95rem; font-weight:600; background:#fff; margin-bottom:14px;">
+        <input type="text" id="filterCounterCust" placeholder="🔍 Cerca rapidamente per nome, codice o P.IVA (es. termo, rossi, 014)..." 
+          style="width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.9rem; margin-bottom:6px; box-sizing:border-box;">
+        <select id="selCounterCustomer" style="width:100%; padding:10px; border-radius:8px; border:2px solid var(--border); font-size:0.95rem; font-weight:600; background:#fff; margin-bottom:14px; box-sizing:border-box;">
           <option value="">Seleziona cliente dall'anagrafica…</option>
         </select>
 
@@ -1228,6 +1231,8 @@
       let filtered = enrichedOrders;
       if (filter === 'ready') {
         filtered = enrichedOrders.filter(o => o.stockInfo.is100Ready);
+      } else if (filter === 'positive') {
+        filtered = enrichedOrders.filter(o => o.stockInfo.is100Ready || o.stockInfo.isPartialReady);
       } else if (filter === 'in_progress') {
         filtered = enrichedOrders.filter(o => o.status === 'In Preparazione');
       } else if (filter === 'to_assign') {
@@ -1811,6 +1816,24 @@
       const custSelect = document.getElementById('selCounterCustomer');
       custSelect.innerHTML = '<option value="">Seleziona cliente dall\'anagrafica…</option>' +
         allCustomers.map(c => `<option value="${c.code || c.id}">${c.code ? c.code + ' - ' : ''}${c.name}</option>`).join('');
+
+      const filterCustInput = document.getElementById('filterCounterCust');
+      if (filterCustInput) {
+        filterCustInput.oninput = () => {
+          const q = filterCustInput.value.trim().toLowerCase();
+          const filtered = allCustomers.filter(c => {
+            const name = String(c.name || '').toLowerCase();
+            const code = String(c.code || '').toLowerCase();
+            const piva = String(c.vat_number || '').toLowerCase();
+            return name.includes(q) || code.includes(q) || piva.includes(q);
+          });
+          custSelect.innerHTML = '<option value="">Seleziona cliente dall\'anagrafica…</option>' +
+            filtered.map(c => `<option value="${c.code || c.id}">${c.code ? c.code + ' - ' : ''}${c.name}</option>`).join('');
+          if (filtered.length === 1) {
+            custSelect.value = filtered[0].code || filtered[0].id;
+          }
+        };
+      }
 
       // Load warehouse orders
       activeOrders = await window.ClwData.getWarehouseOrders();
