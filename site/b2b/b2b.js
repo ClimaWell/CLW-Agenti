@@ -119,6 +119,12 @@
       loginForm.addEventListener('submit', handleLogin);
     }
 
+    // Register Form Submit
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) {
+      registerForm.addEventListener('submit', handleRegister);
+    }
+
     // Search and Brand Filter
     const searchInput = document.getElementById('catalogSearch');
     if (searchInput) {
@@ -189,6 +195,124 @@
       loadCustomerOrders();
     }
   };
+
+  // --- AUTH SWITCH & REGISTRATION HANDLER ---
+  window.showAuthMode = function(mode) {
+    const isLogin = mode === 'login';
+    const formLogin = document.getElementById('loginForm');
+    const formReg = document.getElementById('registerForm');
+    const tabLogin = document.getElementById('tabAuthLogin');
+    const tabReg = document.getElementById('tabAuthRegister');
+    const title = document.getElementById('authModalTitle');
+    const subtitle = document.getElementById('authModalSubtitle');
+    const demoBox = document.getElementById('demoHelperBox');
+    const errEl = document.getElementById('loginError');
+    const succEl = document.getElementById('loginSuccess');
+
+    if (errEl) errEl.style.display = 'none';
+    if (succEl) succEl.style.display = 'none';
+
+    if (tabLogin) tabLogin.classList.toggle('active', isLogin);
+    if (tabReg) tabReg.classList.toggle('active', !isLogin);
+
+    if (formLogin) formLogin.style.display = isLogin ? 'block' : 'none';
+    if (formReg) formReg.style.display = !isLogin ? 'block' : 'none';
+    if (demoBox) demoBox.style.display = isLogin ? 'block' : 'none';
+
+    if (title) title.textContent = isLogin ? 'Accesso Riservato B2B' : 'Registra la Tua Azienda (B2B)';
+    if (subtitle) subtitle.textContent = isLogin
+      ? 'Inserisci il tuo Codice Cliente o Partita IVA per accedere al catalogo.'
+      : 'Compila i dati aziendali per attivare subito l\'accesso al portale B2B.';
+  };
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnRegisterSubmit');
+    const errEl = document.getElementById('loginError');
+    const succEl = document.getElementById('loginSuccess');
+    if (errEl) errEl.style.display = 'none';
+    if (succEl) succEl.style.display = 'none';
+
+    const ragSoc = (document.getElementById('regRagioneSociale')?.value || '').trim();
+    const piva = (document.getElementById('regPiva')?.value || '').trim();
+    const cf = (document.getElementById('regCodFiscale')?.value || '').trim() || piva;
+    const indirizzo = (document.getElementById('regIndirizzo')?.value || '').trim();
+    const cap = (document.getElementById('regCap')?.value || '').trim();
+    const citta = (document.getElementById('regCitta')?.value || '').trim();
+    const prov = (document.getElementById('regProvincia')?.value || '').trim().toUpperCase();
+    const tel = (document.getElementById('regTelefono')?.value || '').trim();
+    const email = (document.getElementById('regEmail')?.value || '').trim().toLowerCase();
+    const password = (document.getElementById('regPassword')?.value || '').trim();
+
+    if (!ragSoc || !piva || !indirizzo || !cap || !citta || !tel || !email || !password) {
+      showLoginError('Compila tutti i campi obbligatori contrassegnati con asterisco.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Registrazione in corso...';
+
+    try {
+      const generatedCode = `CLI-${piva.slice(-6)}`;
+      const newCust = {
+        code: generatedCode,
+        name: ragSoc,
+        address: indirizzo,
+        city: citta,
+        province: prov,
+        postal_code: cap,
+        phone: tel,
+        mobile: tel,
+        email: email,
+        vat_number: piva,
+        tax_code: cf,
+        agent_code: 'B2B_WEB',
+        payment_method: 'Ri.Ba. 60 gg. f.m.'
+      };
+
+      // 1. Salva in Supabase tabella customers
+      if (window.ClwData) {
+        await window.ClwData.saveCustomer(newCust);
+
+        // 2. Registra anche utente in app_users
+        if (window.ClwData.createUser) {
+          try {
+            await window.ClwData.createUser({
+              username: email,
+              password: password,
+              name: ragSoc,
+              role: 'cliente_b2b',
+              customer_code: generatedCode,
+              active: true,
+              can_orders: true,
+              can_warehouse: false
+            });
+          } catch (uErr) {
+            console.warn('Avviso creazione utente app_users:', uErr);
+          }
+        }
+      }
+
+      if (succEl) {
+        succEl.innerHTML = `🎉 <strong>Registrazione completata!</strong><br>Codice Cliente Assegnato: <strong>${generatedCode}</strong><br>Accesso attivato con successo!`;
+        succEl.style.display = 'block';
+      }
+
+      // Salva sessione immediata e apri il portale
+      setTimeout(() => {
+        saveSession(newCust);
+        loadCatalog();
+        loadCustomerOrders();
+      }, 1200);
+
+    } catch (err) {
+      console.error('Errore registrazione cliente B2B:', err);
+      showLoginError(`Errore durante la registrazione: ${err.message || 'Riprova più tardi.'}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ Registra & Attiva Portale B2B';
+    }
+  }
 
   // --- LOGIN HANDLER ---
   async function handleLogin(e) {

@@ -232,21 +232,34 @@
 
   </main>
 
-  <!-- MODAL LOGIN ACCESSO B2B -->
+  <!-- MODAL LOGIN / REGISTRAZIONE ACCESSO B2B -->
   <div class="modal-overlay" id="loginModal" style="display:none;">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:480px;">
       <div class="login-brand-header">
         <div class="login-logo-icon">🏢</div>
-        <h2 class="login-title">Accesso Riservato B2B</h2>
-        <div class="login-subtitle">Inserisci il tuo Codice Cliente o Partita IVA per accedere al catalogo e ordinare materiale in pronta consegna.</div>
+        <h2 class="login-title" id="authModalTitle">Accesso Riservato B2B</h2>
+        <div class="login-subtitle" id="authModalSubtitle">Accedi al catalogo materiale in pronta consegna o registra la tua azienda.</div>
+      </div>
+
+      <!-- SWITCH ACCEDI / REGISTRATI -->
+      <div style="display:flex; border-bottom:2px solid var(--border); margin-bottom:18px;">
+        <button type="button" id="tabAuthLogin" class="tab-btn active" style="flex:1; justify-content:center; padding:10px;" onclick="showAuthMode('login')">
+          🔑 Accedi
+        </button>
+        <button type="button" id="tabAuthRegister" class="tab-btn" style="flex:1; justify-content:center; padding:10px;" onclick="showAuthMode('register')">
+          ➕ Nuovo Cliente
+        </button>
       </div>
 
       <div id="loginError" style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px; border-radius:6px; font-size:0.85rem; margin-bottom:14px; display:none;"></div>
+      <div id="loginSuccess" style="background:#d1fae5; border:1px solid #a7f3d0; color:#065f46; padding:10px; border-radius:6px; font-size:0.85rem; margin-bottom:14px; display:none;"></div>
 
+      <!-- FORM 1: LOGIN -->
       <form id="loginForm">
         <div class="form-group">
           <label class="form-label required" for="loginCustomerId">Codice Cliente / Partita IVA / Email</label>
           <input type="text" id="loginCustomerId" class="form-input" placeholder="es. CLI-01452 oppure 01234567890" required autofocus>
+          <small style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;">Se sei già cliente Climawell, puoi accedere subito con il tuo Codice o Partita IVA.</small>
         </div>
 
         <div class="form-group">
@@ -259,7 +272,66 @@
         </button>
       </form>
 
-      <div class="login-demo-helper">
+      <!-- FORM 2: REGISTRAZIONE NUOVO CLIENTE B2B -->
+      <form id="registerForm" style="display:none;">
+        <div class="form-group">
+          <label class="form-label required" for="regRagioneSociale">Ragione Sociale / Nome Azienda</label>
+          <input type="text" id="regRagioneSociale" class="form-input" placeholder="es. Rossi Impianti Termoidraulici S.r.l." required>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label required" for="regPiva">Partita IVA</label>
+            <input type="text" id="regPiva" class="form-input" placeholder="11 cifre" maxlength="11" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="regCodFiscale">Codice Fiscale (se diverso)</label>
+            <input type="text" id="regCodFiscale" class="form-input" placeholder="16 caratteri o P.IVA" maxlength="16">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required" for="regIndirizzo">Indirizzo Sede Legale (Via e Civico)</label>
+          <input type="text" id="regIndirizzo" class="form-input" placeholder="es. Via Pratese 10" required>
+        </div>
+
+        <div class="form-row-3">
+          <div class="form-group">
+            <label class="form-label required" for="regCap">CAP</label>
+            <input type="text" id="regCap" class="form-input" placeholder="50145" maxlength="5" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="regCitta">Città</label>
+            <input type="text" id="regCitta" class="form-input" placeholder="Firenze" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="regProvincia">Prov.</label>
+            <input type="text" id="regProvincia" class="form-input" placeholder="FI" maxlength="2" style="text-transform:uppercase;" required>
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label required" for="regTelefono">Cellulare / Telefono</label>
+            <input type="tel" id="regTelefono" class="form-input" placeholder="es. 333 1234567" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="regEmail">Email Aziendale</label>
+            <input type="email" id="regEmail" class="form-input" placeholder="ordini@azienda.it" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required" for="regPassword">Crea Password di Accesso</label>
+          <input type="password" id="regPassword" class="form-input" placeholder="Almeno 6 caratteri" minlength="6" required>
+        </div>
+
+        <button type="submit" class="btn-login-submit" id="btnRegisterSubmit" style="background:#10b981;">
+          ✅ Registra & Attiva Portale B2B
+        </button>
+      </form>
+
+      <div class="login-demo-helper" id="demoHelperBox">
         <span>Vuoi provare l'accesso dimostrativo?</span><br>
         <button type="button" class="btn-demo-quick" onclick="quickDemoLogin('CLI-01452', 'Termoidraulica Fiorentina S.r.l.', 'Via Baracca 142', 'Firenze', '50127', 'FI')">
           ⚡ Prova come Termoidraulica Fiorentina S.r.l.
