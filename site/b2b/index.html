@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Portale Clienti B2B — Ordini & Pronta Consegna | Climawell</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- HEADER NAVBAR -->
+  <header class="b2b-header">
+    <div class="b2b-nav-container">
+      <a href="/b2b/" class="b2b-brand">
+        <span class="b2b-logo-badge">CLW</span>
+        <div>
+          <div class="b2b-brand-name">Climawell B2B</div>
+          <div class="b2b-badge-portal">Area Clienti Riservata</div>
+        </div>
+      </a>
+
+      <div class="b2b-header-actions">
+        <div class="customer-info-pill" id="customerPill">
+          <span>👤</span>
+          <span id="custHeaderName">Caricamento...</span>
+          <span id="custHeaderCode" style="color:#38bdf8; font-weight:700;"></span>
+        </div>
+
+        <button type="button" class="btn-header-cart" id="btnHeaderCart" title="Vedi Carrello">
+          <span>🛒</span>
+          <span>Carrello</span>
+          <span class="cart-count-badge" id="cartBadgeCount">0</span>
+        </button>
+
+        <button type="button" class="btn-logout" onclick="logoutB2B()" title="Disconnetti sessione">
+          Esci
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <nav class="b2b-tabs-bar">
+    <div class="b2b-tabs-container">
+      <button type="button" class="tab-btn active" data-tab="catalog">
+        <span>📦</span>
+        <span>Articoli in Pronta Consegna</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="cart">
+        <span>🛒</span>
+        <span>Carrello & Consegna Cantiere</span>
+        <span class="tab-badge" id="cartTabBadge">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="orders">
+        <span>🚚</span>
+        <span>I Miei Ordini & Spedizioni</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN WRAPPER -->
+  <main class="b2b-main">
+
+    <!-- TAB 1: CATALOGO ARTICOLI (SOLO STOCK POSITIVO, ZERO PREZZI) -->
+    <section id="tab-catalog" class="tab-content active">
+      <div class="catalog-header">
+        <div class="catalog-title-row">
+          <div>
+            <h1><span>📦</span> Catalogo Articoli Riservato B2B</h1>
+            <p style="color:var(--text-muted); font-size:0.88rem; margin-top:4px;">
+              Visualizza gli articoli immediatamente disponibili a magazzino e invia l'ordine direttamente alla nostra logistica.
+            </p>
+          </div>
+          <div class="stock-only-badge">
+            <span>🟢</span>
+            <span>Solo Articoli con Giacenza Positiva</span>
+          </div>
+        </div>
+
+        <div class="search-filter-grid">
+          <div class="input-search-wrapper">
+            <span class="search-icon-inside">🔍</span>
+            <input type="text" id="catalogSearch" placeholder="Cerca per codice articolo, descrizione, marca o EAN...">
+          </div>
+
+          <select id="brandFilter" class="select-filter">
+            <option value="ALL">Tutte le Marche</option>
+          </select>
+
+          <div style="font-size:0.88rem; font-weight:600; color:var(--text-muted); text-align:right;" id="availableCount">
+            Caricamento...
+          </div>
+
+          <button type="button" class="btn-filter-reset" onclick="document.getElementById('catalogSearch').value=''; document.getElementById('catalogSearch').dispatchEvent(new Event('input'));">
+            Azzera Filtri
+          </button>
+        </div>
+      </div>
+
+      <div class="product-grid" id="productGrid">
+        <!-- Generato dinamicamente da b2b.js -->
+      </div>
+    </section>
+
+    <!-- TAB 2: CARRELLO E CHECKOUT CANTIERE -->
+    <section id="tab-cart" class="tab-content">
+      <form id="b2bOrderForm" class="cart-checkout-layout">
+        <!-- Sinistra: Lista Articoli Carrello -->
+        <div class="checkout-box">
+          <h2><span>🛒</span> Riepilogo Articoli Selezionati</h2>
+
+          <div id="cartEmptyMessage" style="text-align:center; padding:40px 20px; color:var(--text-muted); display:none;">
+            <div style="font-size:2.5rem; margin-bottom:8px;">🛒</div>
+            <p>Il tuo carrello è vuoto.</p>
+            <button type="button" class="btn-filter-reset" style="margin-top:12px;" onclick="switchTab('catalog')">
+              Vai al Catalogo
+            </button>
+          </div>
+
+          <div class="cart-items-list" id="cartItemsList">
+            <!-- Righe carrello renderizzate da b2b.js -->
+          </div>
+
+          <div style="background:#f1f5f9; padding:12px 16px; border-radius:var(--radius-sm); font-size:0.85rem; color:#475569;">
+            ℹ️ <strong>Condizioni di Vendita:</strong> I prezzi e gli sconti contrattuali saranno applicati in base alle condizioni concordate con Climawell e formalizzati nel documento gestionale Plus 2000.
+          </div>
+        </div>
+
+        <!-- Destra: Modulo Destinazione Merce / Cantiere -->
+        <div class="checkout-box">
+          <h2><span>📍</span> Destinazione & Consegna Merce</h2>
+
+          <div class="form-group">
+            <label class="form-label required">Seleziona dove consegnare la merce</label>
+            <div class="destination-switch">
+              <div class="dest-option-card selected" id="optDeliverySede">
+                <input type="radio" name="deliveryDestRadio" id="radioSede" value="sede" checked>
+                <label for="radioSede" class="dest-title">Sede Aziendale</label>
+                <div class="dest-desc" id="destSedeSummary">Indirizzo anagrafico registrato</div>
+              </div>
+
+              <div class="dest-option-card" id="optDeliveryCantiere">
+                <input type="radio" name="deliveryDestRadio" id="radioCantiere" value="cantiere">
+                <label for="radioCantiere" class="dest-title">Destinazione Diversa / Cantiere</label>
+                <div class="dest-desc">Consegna diretta sul cantiere o altro indirizzo</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Campi Specifici Cantiere / Destinazione Diversa -->
+          <div id="cantiereFieldsWrapper" style="display:none;">
+            <div class="cantiere-box-alert">
+              🏗️ <strong>Consegna su Cantiere o Indirizzo Diverso:</strong>
+              Compila con precisione l'indirizzo, il nominativo del referente e il numero di cellulare per garantire che il corriere (o la nostra logistica con Packlink Pro) possa effettuare la consegna senza ritardi.
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required" for="cantiereNome">Denominazione Cantiere / Destinatario</label>
+              <input type="text" id="cantiereNome" class="form-input" placeholder="es. Cantiere Residenza Giardino - Palazzina B">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required" for="cantiereIndirizzo">Indirizzo di Consegna (Via / Piazza e N. Civico)</label>
+              <input type="text" id="cantiereIndirizzo" class="form-input" placeholder="es. Via delle Terme 45">
+            </div>
+
+            <div class="form-row-3">
+              <div class="form-group">
+                <label class="form-label required" for="cantiereCap">CAP</label>
+                <input type="text" id="cantiereCap" class="form-input" placeholder="50125" maxlength="5">
+              </div>
+              <div class="form-group">
+                <label class="form-label required" for="cantiereCitta">Città</label>
+                <input type="text" id="cantiereCitta" class="form-input" placeholder="Firenze">
+              </div>
+              <div class="form-group">
+                <label class="form-label required" for="cantiereProvincia">Provincia</label>
+                <input type="text" id="cantiereProvincia" class="form-input" placeholder="FI" maxlength="2" style="text-transform:uppercase;">
+              </div>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label required" for="cantiereReferente">Nome Referente al Ricevimento</label>
+                <input type="text" id="cantiereReferente" class="form-input" placeholder="es. Marco Rossi">
+              </div>
+              <div class="form-group">
+                <label class="form-label required" for="cantiereTelefono">Cellulare Referente per Corriere</label>
+                <input type="tel" id="cantiereTelefono" class="form-input" placeholder="es. 333 1234567">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="cantiereNote">Note di Consegna & Accessibilità</label>
+              <textarea id="cantiereNote" class="form-textarea" rows="2" placeholder="es. Sponda idraulica obbligatoria, orari cantiere: 8:00-12:00 e 13:30-17:00, strada stretta..."></textarea>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit-order" id="btnSubmitOrder">
+            <span>🚀</span> Conferma & Invia Ordine B2B
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 3: I MIEI ORDINI & TRACKING SPEDIZIONI -->
+    <section id="tab-orders" class="tab-content">
+      <div class="catalog-header">
+        <div class="catalog-title-row">
+          <div>
+            <h1><span>🚚</span> I Miei Ordini & Tracciamento Spedizioni</h1>
+            <p style="color:var(--text-muted); font-size:0.88rem; margin-top:4px;">
+              Segui lo stato di lavorazione dei tuoi ordini dal magazzino fino alla consegna finale sul cantiere.
+            </p>
+          </div>
+          <button type="button" class="btn-filter-reset" onclick="switchTab('orders')">
+            🔄 Aggiorna Stato
+          </button>
+        </div>
+      </div>
+
+      <div class="orders-table-wrapper">
+        <div class="orders-list" id="ordersListContainer">
+          <!-- Renderizzato dinamicamente da b2b.js -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL LOGIN ACCESSO B2B -->
+  <div class="modal-overlay" id="loginModal" style="display:none;">
+    <div class="modal-content">
+      <div class="login-brand-header">
+        <div class="login-logo-icon">🏢</div>
+        <h2 class="login-title">Accesso Riservato B2B</h2>
+        <div class="login-subtitle">Inserisci il tuo Codice Cliente o Partita IVA per accedere al catalogo e ordinare materiale in pronta consegna.</div>
+      </div>
+
+      <div id="loginError" style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:10px; border-radius:6px; font-size:0.85rem; margin-bottom:14px; display:none;"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label required" for="loginCustomerId">Codice Cliente / Partita IVA / Email</label>
+          <input type="text" id="loginCustomerId" class="form-input" placeholder="es. CLI-01452 oppure 01234567890" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginPin">PIN o Password Personale</label>
+          <input type="password" id="loginPin" class="form-input" placeholder="••••••••">
+        </div>
+
+        <button type="submit" class="btn-login-submit" id="btnLoginSubmit">
+          Accedi all'Area Riservata
+        </button>
+      </form>
+
+      <div class="login-demo-helper">
+        <span>Vuoi provare l'accesso dimostrativo?</span><br>
+        <button type="button" class="btn-demo-quick" onclick="quickDemoLogin('CLI-01452', 'Termoidraulica Fiorentina S.r.l.', 'Via Baracca 142', 'Firenze', '50127', 'FI')">
+          ⚡ Prova come Termoidraulica Fiorentina S.r.l.
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT SUPABASE & CONTROLLER -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabaseClient.js"></script>
+  <script src="b2b.js"></script>
+</body>
+</html>

@@ -978,6 +978,8 @@
       <div class="top-actions">
         <a id="commercialHubTop" class="btn-top" href="/commercial-hub/index.html"
           style="background:linear-gradient(135deg, #0284c7, #4f46e5); color:#fff; border-color:#0284c7; font-weight:700;">💼 Commercial Hub</a>
+        <a id="b2bPortalTop" class="btn-top" href="/b2b/" target="_blank"
+          style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🏢 Portale B2B</a>
         <a id="devAreaTop" class="btn-top" href="/area-sviluppo.html"
           style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🚀 Area di Sviluppo</a>
         <a id="warehouseTop" class="btn-top" href="/magazzino.html"
@@ -1059,6 +1061,9 @@
           <a class="btn-sub" id="commercialHubBtn" href="/commercial-hub/index.html"
             style="background:linear-gradient(135deg, #0284c7, #4f46e5); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">💼
             Commercial Hub (CRM, WhatsApp, Pipeline)</a>
+          <a class="btn-sub" id="b2bPortalBtn" href="/b2b/" target="_blank"
+            style="background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">🏢
+            Portale Clienti B2B (Solo Giacenze Positive & Ordini Cantiere)</a>
           <a class="btn-sub" id="devAreaBtn" href="/area-sviluppo.html"
             style="background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">🚀
             Area di Sviluppo & Mappa Territoriale</a>
@@ -1620,6 +1625,12 @@
       // Se l'utente è un operatore di magazzino, reindirizza direttamente all'app Magazzino Mobile
       if (currentUser.role === 'magazziniere' || currentUser.role === 'warehouse') {
         window.location.href = '/magazzino.html';
+        return;
+      }
+
+      // Se l'utente è un cliente B2B, reindirizza direttamente al Portale Riservato B2B
+      if (currentUser.role === 'cliente_b2b' || currentUser.role === 'cliente') {
+        window.location.href = '/b2b/';
         return;
       }
 
@@ -2303,6 +2314,7 @@
                 style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; font-weight:600; background:#fff;">
                 <option value="agente">Agente Commerciale (Ordini / Offerte)</option>
                 <option value="magazziniere">Operatore Magazzino (Picking & Barcode)</option>
+                <option value="cliente_b2b">Cliente B2B (Solo Giacenze Positive & Ordini)</option>
                 <option value="admin">Amministratore (Controllo Totale)</option>
                 <option value="capo_area">Capo Area Commerciale</option>
               </select>

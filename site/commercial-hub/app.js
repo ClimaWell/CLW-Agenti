@@ -269,6 +269,10 @@ function renderCurrentSection() {
       pageTitle.textContent = 'Marketplace Amazon FBM — Gestione Inserzioni & Spedizioni';
       renderAmazonSection(container);
       break;
+    case 'packlink':
+      pageTitle.textContent = 'Spedizioni Packlink Pro & Logistica Cantieri';
+      renderPacklinkSection(container);
+      break;
     default:
       renderDashboard(container);
   }
@@ -3272,4 +3276,458 @@ window.calculateAmazonPricePreview = function() {
     document.getElementById('resNetProfit').textContent = euro(profit);
   }
 };
+
+// ==========================================
+// 8. PACKLINK PRO SHIPPING & CANTIERI MODULE
+// ==========================================
+let _packlinkOrders = [];
+let _packlinkFilter = 'ALL'; // 'ALL', 'CANTIERI', 'PENDING', 'SHIPPED'
+let _packlinkSearch = '';
+let _activeShipmentModal = null;
+let _calculatedRates = [];
+
+async function renderPacklinkSection(container) {
+  const apiKey = window.PacklinkService?.config.getApiKey() || '';
+  const isConfigured = Boolean(apiKey);
+
+  container.innerHTML = `
+    <div style="background:#071a2b; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:20px; margin-bottom:24px; color:#fff;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div>
+          <h2 style="font-size:1.35rem; margin:0 0 6px; display:flex; align-items:center; gap:10px;">
+            <span>🚚</span> Spedizioni con Packlink Pro & Logistica Cantieri
+          </h2>
+          <p style="color:#94a3b8; font-size:0.88rem; margin:0;">
+            Gestione centralizzata spedizioni corriere espresso (GLS, BRT, TNT, Poste) per ordini B2B e ordini con destinazione cantiere.
+          </p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div style="background:${isConfigured ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}; border:1px solid ${isConfigured ? '#10b981' : '#f59e0b'}; padding:6px 14px; border-radius:20px; font-size:0.82rem; font-weight:700; color:${isConfigured ? '#34d399' : '#fbbf24'};">
+            ${isConfigured ? '🟢 Packlink API Attiva' : '🟡 Modalità Tariffe Calibrate'}
+          </div>
+          <button class="btn-hub secondary" onclick="openPacklinkConfigModal()">⚙️ Configura API</button>
+          <button class="btn-hub primary" onclick="loadPacklinkOrders()">🔄 Aggiorna Ordini</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTRI ORDINI -->
+    <div class="hub-card" style="margin-bottom:20px; padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-hub ${_packlinkFilter === 'ALL' ? 'primary' : 'secondary'}" onclick="setPacklinkFilter('ALL')">Tutti gli Ordini</button>
+          <button class="btn-hub ${_packlinkFilter === 'CANTIERI' ? 'primary' : 'secondary'}" onclick="setPacklinkFilter('CANTIERI')">🏗️ Solo Consegna Cantiere</button>
+          <button class="btn-hub ${_packlinkFilter === 'PENDING' ? 'primary' : 'secondary'}" onclick="setPacklinkFilter('PENDING')">📦 Da Spedire (Inviati/Pronti)</button>
+          <button class="btn-hub ${_packlinkFilter === 'SHIPPED' ? 'primary' : 'secondary'}" onclick="setPacklinkFilter('SHIPPED')">🚚 Già Spediti</button>
+        </div>
+        <div style="flex:1; max-width:320px;">
+          <input type="text" id="packlinkSearchInput" class="hub-input" placeholder="Cerca ordine, cantiere, referente o tracking..." value="${escapeHtml(_packlinkSearch)}" oninput="handlePacklinkSearch(this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- TABELLA ORDINI PACKLINK -->
+    <div class="hub-table-wrapper" id="packlinkTableContainer">
+      <div style="text-align:center; padding:40px; color:#64748b;">
+        <div style="font-size:2rem; margin-bottom:8px;">⏳</div>
+        Caricamento ordini per spedizione Packlink Pro...
+      </div>
+    </div>
+
+    <!-- CONTENITORE MODAL SPEDIZIONE -->
+    <div id="packlinkModalMount"></div>
+  `;
+
+  await loadPacklinkOrders();
+}
+
+async function loadPacklinkOrders() {
+  const container = document.getElementById('packlinkTableContainer');
+  if (!container) return;
+
+  try {
+    let docs = [];
+    if (window.ClwData && window.ClwData.getConfig().url) {
+      const client = window.supabase ? window.supabase.createClient(window.ClwData.getConfig().url, window.ClwData.getConfig().key) : null;
+      if (client) {
+        const { data, error } = await client
+          .from('documents')
+          .select('*')
+          .in('document_type', ['OCL', 'ORD'])
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (!error && data) docs = data;
+      }
+    }
+
+    _packlinkOrders = docs;
+    renderPacklinkTable();
+  } catch (err) {
+    console.error('Errore caricamento ordini Packlink:', err);
+    if (container) container.innerHTML = `<div style="text-align:center; padding:30px; color:#ef4444;">Errore nel caricamento ordini: ${err.message}</div>`;
+  }
+}
+
+function setPacklinkFilter(filterName) {
+  _packlinkFilter = filterName;
+  renderPacklinkSection(document.getElementById('hubContentContainer'));
+}
+
+function handlePacklinkSearch(val) {
+  _packlinkSearch = val.trim().toLowerCase();
+  renderPacklinkTable();
+}
+
+function renderPacklinkTable() {
+  const container = document.getElementById('packlinkTableContainer');
+  if (!container) return;
+
+  const filtered = _packlinkOrders.filter(o => {
+    const isCantiere = (o.destination_address || '').includes('[CANTIERE:') || (o.notes || '').includes('DESTINAZIONE DIVERSA CANTIERE');
+    const st = (o.status || '').toLowerCase();
+    const isShipped = st.includes('sped') || st.includes('evaso');
+
+    if (_packlinkFilter === 'CANTIERI' && !isCantiere) return false;
+    if (_packlinkFilter === 'PENDING' && isShipped) return false;
+    if (_packlinkFilter === 'SHIPPED' && !isShipped) return false;
+
+    if (_packlinkSearch) {
+      const num = String(o.number || '').toLowerCase();
+      const cust = String(o.customer_name || '').toLowerCase();
+      const dest = String(o.destination_address || '').toLowerCase();
+      const notes = String(o.notes || '').toLowerCase();
+      const track = String(o.tracking_number || '').toLowerCase();
+      if (!num.includes(_packlinkSearch) && !cust.includes(_packlinkSearch) && !dest.includes(_packlinkSearch) && !notes.includes(_packlinkSearch) && !track.includes(_packlinkSearch)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:50px 20px; color:#64748b;">
+        <div style="font-size:2.5rem; margin-bottom:10px;">📦</div>
+        <h3 style="color:#0f172a; margin-bottom:6px;">Nessun ordine trovato</h3>
+        <p style="font-size:0.88rem;">Non ci sono ordini corrispondenti ai criteri o filtri selezionati.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Cliente</th>
+          <th>Destinazione Consegna & Cantiere</th>
+          <th>Stato</th>
+          <th>Vettore & Spedizione</th>
+          <th style="text-align:right;">Azioni Logistica</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(o => {
+          const isCantiere = (o.destination_address || '').includes('[CANTIERE:') || (o.notes || '').includes('DESTINAZIONE DIVERSA CANTIERE');
+          const st = (o.status || 'Inviato').toLowerCase();
+          const isShipped = st.includes('sped') || st.includes('evaso');
+          const shippingInfo = window.PacklinkService ? window.PacklinkService.parseOrderShippingInfo(o) : {};
+
+          let badgeStatus = '<span class="status-badge" style="background:#fef3c7; color:#92400e;">🟡 Inviato</span>';
+          if (st.includes('prep') || st.includes('lavor')) {
+            badgeStatus = '<span class="status-badge" style="background:#e0f2fe; color:#0369a1;">🔵 In Preparazione</span>';
+          } else if (st.includes('pront') || st === 'preparato') {
+            badgeStatus = '<span class="status-badge" style="background:#e0e7ff; color:#3730a3;">🟣 Pronto Spedizione</span>';
+          } else if (isShipped) {
+            badgeStatus = '<span class="status-badge" style="background:#d1fae5; color:#065f46;">🟢 Spedito</span>';
+          }
+
+          let destBadge = isCantiere
+            ? `<div style="background:#eff6ff; border:1px solid #bfdbfe; padding:6px 10px; border-radius:6px; font-size:0.82rem; color:#1e40af;">
+                <div style="font-weight:700;">🏗️ Cantiere: ${escapeHtml(shippingInfo.cantiereName || 'Cantiere Speciale')}</div>
+                <div>📍 ${escapeHtml(shippingInfo.street1 || o.destination_address)}, ${escapeHtml(shippingInfo.zip_code)} ${escapeHtml(shippingInfo.city)} (${escapeHtml(shippingInfo.province)})</div>
+                ${shippingInfo.referente ? `<div style="color:#0369a1; margin-top:2px;">👤 <strong>Ref:</strong> ${escapeHtml(shippingInfo.referente)} · 📞 <strong>Tel:</strong> <a href="tel:${escapeHtml(shippingInfo.phone)}" style="color:#0284c7; font-weight:700;">${escapeHtml(shippingInfo.phone)}</a></div>` : ''}
+              </div>`
+            : `<div style="font-size:0.82rem; color:#475569;">
+                <div>🏢 <strong>Sede Legale:</strong> ${escapeHtml(o.destination_address || 'Sede anagrafica cliente')}</div>
+              </div>`;
+
+          let trackHtml = isShipped
+            ? `<div style="font-size:0.82rem;">
+                <div style="font-weight:700; color:#065f46;">🚚 ${escapeHtml(o.carrier_name || 'Packlink Pro')}</div>
+                <div style="font-family:monospace; color:#0f172a;">LdV: ${escapeHtml(o.tracking_number || '-')}</div>
+                ${o.tracking_number ? `<a href="https://tracking.packlink.com/it/tracking/${encodeURIComponent(o.tracking_number)}" target="_blank" style="color:#0284c7; font-size:0.75rem; text-decoration:underline;">Traccia Spedizione</a>` : ''}
+              </div>`
+            : `<span style="font-size:0.82rem; color:#94a3b8; font-style:italic;">In attesa di spedizione</span>`;
+
+          return `
+            <tr>
+              <td>
+                <strong style="color:#0f172a; font-family:monospace; font-size:0.95rem;">${escapeHtml(o.number)}</strong>
+                <div style="font-size:0.75rem; color:#64748b;">${o.document_date ? new Date(o.document_date).toLocaleDateString('it-IT') : '-'}</div>
+              </td>
+              <td>
+                <strong style="color:#0f172a; display:block;">${escapeHtml(o.customer_name || 'Cliente')}</strong>
+                <small style="color:#64748b;">Cod: ${escapeHtml(o.customer_code || '-')}</small>
+              </td>
+              <td style="max-width:320px;">
+                ${destBadge}
+              </td>
+              <td>
+                ${badgeStatus}
+              </td>
+              <td>
+                ${trackHtml}
+              </td>
+              <td style="text-align:right;">
+                ${!isShipped ? `
+                  <button class="btn-hub primary" style="padding:6px 12px; font-size:0.8rem;" onclick="openPacklinkShipmentModal('${escapeHtml(o.number)}')">
+                    📦 Spedisci con Packlink Pro
+                  </button>
+                ` : `
+                  <button class="btn-hub secondary" style="padding:6px 12px; font-size:0.8rem;" onclick="alert('Ordine già spedito con ${escapeHtml(o.carrier_name || 'corriere')}. Tracking: ${escapeHtml(o.tracking_number)}')">
+                    📄 Lettera di Vettura
+                  </button>
+                `}
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+window.openPacklinkShipmentModal = async function(docNumber) {
+  const order = _packlinkOrders.find(o => o.number === docNumber);
+  if (!order) return;
+
+  const mount = document.getElementById('packlinkModalMount');
+  if (!mount) return;
+
+  const sender = window.PacklinkService.getSenderInfo();
+  const recipient = window.PacklinkService.parseOrderShippingInfo(order);
+
+  _activeShipmentModal = { order, recipient };
+
+  mount.innerHTML = `
+    <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(7,26,43,0.85); backdrop-filter:blur(4px); z-index:3000; display:flex; align-items:center; justify-content:center; padding:20px;">
+      <div style="background:#ffffff; border-radius:12px; max-width:680px; width:100%; max-height:90vh; overflow-y:auto; padding:24px; box-shadow:0 15px 35px rgba(0,0,0,0.3); border:1px solid #cbd5e1;">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
+          <div>
+            <h3 style="margin:0; font-size:1.25rem; color:#0f172a; display:flex; align-items:center; gap:8px;">
+              <span>🚚</span> Crea Spedizione Packlink Pro — ${escapeHtml(order.number)}
+            </h3>
+            <span style="font-size:0.82rem; color:#64748b;">Destinatario: ${escapeHtml(order.customer_name)}</span>
+          </div>
+          <button style="background:transparent; border:none; font-size:1.4rem; cursor:pointer; color:#94a3b8;" onclick="closePacklinkModal()">✕</button>
+        </div>
+
+        <!-- RIEPILOGO DESTINAZIONE / CANTIERE -->
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin-bottom:18px;">
+          <div style="font-weight:700; color:#1e40af; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            <span>${recipient.isCantiere ? '🏗️ DESTINAZIONE CANTIERE' : '🏢 CONSEGNA SEDE'}</span>
+          </div>
+          <div style="font-size:0.88rem; color:#0f172a;">
+            <strong>Destinatario:</strong> ${escapeHtml(recipient.name)}<br>
+            <strong>Indirizzo:</strong> ${escapeHtml(recipient.street1)}, ${escapeHtml(recipient.zip_code)} ${escapeHtml(recipient.city)} (${escapeHtml(recipient.province)})<br>
+            <strong>Contatto Referente:</strong> ${escapeHtml(recipient.phone)} ${recipient.referente ? `(${escapeHtml(recipient.referente)})` : ''}
+          </div>
+          ${recipient.deliveryNotes ? `<div style="margin-top:6px; font-size:0.82rem; color:#1e40af; background:rgba(255,255,255,0.6); padding:4px 8px; border-radius:4px;"><strong>Note Consegna:</strong> ${escapeHtml(recipient.deliveryNotes)}</div>` : ''}
+        </div>
+
+        <!-- SPECIFICHE PACCO / COLLO -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:18px;">
+          <div style="font-weight:700; color:#0f172a; font-size:0.9rem; margin-bottom:10px;">📦 Specifiche Collo / Merce da Spedire:</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">Peso (Kg)</label>
+              <input type="number" id="parcelWeight" class="hub-input" value="12" min="1" step="0.5" style="padding:6px 8px;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">Lunghezza (cm)</label>
+              <input type="number" id="parcelLength" class="hub-input" value="60" min="1" style="padding:6px 8px;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">Larghezza (cm)</label>
+              <input type="number" id="parcelWidth" class="hub-input" value="40" min="1" style="padding:6px 8px;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#475569; display:block;">Altezza (cm)</label>
+              <input type="number" id="parcelHeight" class="hub-input" value="35" min="1" style="padding:6px 8px;">
+            </div>
+          </div>
+          <button class="btn-hub secondary" style="width:100%; margin-top:10px; font-weight:700;" onclick="calculatePacklinkRates()">
+            🔍 Calcola e Confronta Tariffe Corrieri
+          </button>
+        </div>
+
+        <!-- CONTENITORE TARIFFE CALCOLATE -->
+        <div id="ratesContainer">
+          <div style="text-align:center; padding:16px; color:#64748b; font-size:0.85rem;">
+            Fai clic su "Calcola e Confronta Tariffe Corrieri" per scegliere il vettore migliore per questo cantiere.
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top:1px solid #e2e8f0; padding-top:14px;">
+          <button class="btn-hub secondary" onclick="closePacklinkModal()">Annulla</button>
+          <button class="btn-hub primary" id="btnConfirmPacklinkShipment" style="background:#10b981; border-color:#10b981;" disabled onclick="confirmPacklinkShipment()">
+            ✅ Conferma Spedizione & Genera Lettera di Vettura
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  // Calcola subito le tariffe di default
+  calculatePacklinkRates();
+};
+
+window.calculatePacklinkRates = async function() {
+  const container = document.getElementById('ratesContainer');
+  if (!container || !_activeShipmentModal) return;
+
+  container.innerHTML = `<div style="text-align:center; padding:16px; color:#64748b;">⏳ Ricerca migliori tariffe corriere Packlink Pro in corso...</div>`;
+
+  const weight = parseFloat(document.getElementById('parcelWeight')?.value) || 12;
+  const length = parseFloat(document.getElementById('parcelLength')?.value) || 60;
+  const width = parseFloat(document.getElementById('parcelWidth')?.value) || 40;
+  const height = parseFloat(document.getElementById('parcelHeight')?.value) || 35;
+  const toZip = _activeShipmentModal.recipient.zip_code || '50100';
+
+  const rates = await window.PacklinkService.getRates({ toZip, weight, length, width, height });
+  _calculatedRates = rates;
+
+  container.innerHTML = `
+    <div style="font-weight:700; color:#0f172a; font-size:0.88rem; margin-bottom:8px;">Seleziona il corriere per questa spedizione:</div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      ${rates.map((r, idx) => `
+        <label style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid ${idx === 0 ? '#0284c7' : '#cbd5e1'}; border-radius:8px; cursor:pointer; background:${idx === 0 ? '#f0f9ff' : '#ffffff'}; transition:all 0.2s;" onclick="selectPacklinkRate('${r.serviceId}')">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="radio" name="packlinkSelectedRate" value="${r.serviceId}" ${idx === 0 ? 'checked' : ''}>
+            <div>
+              <strong style="color:#0f172a; font-size:0.92rem;">${r.icon || '🚚'} ${escapeHtml(r.carrierName)}</strong>
+              <div style="font-size:0.78rem; color:#64748b;">${escapeHtml(r.serviceName)} · Resa stimata: <strong>${escapeHtml(r.transitTime)}</strong></div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:1.1rem; font-weight:800; color:#0369a1;">€ ${r.price.toFixed(2)}</span>
+            ${r.recommended ? '<div style="font-size:0.7rem; font-weight:700; color:#059669;">★ Consigliato per cantiere</div>' : ''}
+          </div>
+        </label>
+      `).join('')}
+    </div>
+  `;
+
+  const btnConfirm = document.getElementById('btnConfirmPacklinkShipment');
+  if (btnConfirm) btnConfirm.disabled = false;
+};
+
+window.selectPacklinkRate = function(serviceId) {
+  document.querySelectorAll('input[name="packlinkSelectedRate"]').forEach(radio => {
+    const isSelected = radio.value === serviceId;
+    radio.checked = isSelected;
+    radio.closest('label').style.borderColor = isSelected ? '#0284c7' : '#cbd5e1';
+    radio.closest('label').style.backgroundColor = isSelected ? '#f0f9ff' : '#ffffff';
+  });
+};
+
+window.confirmPacklinkShipment = async function() {
+  if (!_activeShipmentModal) return;
+
+  const selectedRateId = document.querySelector('input[name="packlinkSelectedRate"]:checked')?.value;
+  const service = _calculatedRates.find(r => r.serviceId === selectedRateId) || _calculatedRates[0];
+
+  const weight = parseFloat(document.getElementById('parcelWeight')?.value) || 12;
+  const length = parseFloat(document.getElementById('parcelLength')?.value) || 60;
+  const width = parseFloat(document.getElementById('parcelWidth')?.value) || 40;
+  const height = parseFloat(document.getElementById('parcelHeight')?.value) || 35;
+
+  const btn = document.getElementById('btnConfirmPacklinkShipment');
+  btn.disabled = true;
+  btn.textContent = '⏳ Emissione lettera di vettura in corso...';
+
+  try {
+    const res = await window.PacklinkService.createShipment({
+      order: _activeShipmentModal.order,
+      service,
+      parcelInfo: { weight, length, width, height }
+    });
+
+    alert(`🎉 Spedizione Creata con Successo!\n\nCorriere: ${res.carrierName}\nCodice Tracking / Lettera di Vettura: ${res.trackingNumber}\n\nLo stato dell'ordine è stato aggiornato in 'Spedito' su Supabase e il cliente può seguirlo in tempo reale dal suo portale B2B.`);
+
+    closePacklinkModal();
+    await loadPacklinkOrders();
+  } catch (err) {
+    alert(`Errore nella creazione della spedizione: ${err.message}`);
+    btn.disabled = false;
+    btn.textContent = '✅ Conferma Spedizione & Genera Lettera di Vettura';
+  }
+};
+
+window.closePacklinkModal = function() {
+  const mount = document.getElementById('packlinkModalMount');
+  if (mount) mount.innerHTML = '';
+  _activeShipmentModal = null;
+};
+
+window.openPacklinkConfigModal = function() {
+  const mount = document.getElementById('packlinkModalMount');
+  if (!mount) return;
+
+  const curKey = window.PacklinkService.config.getApiKey();
+  const curEnv = window.PacklinkService.config.getEnv();
+
+  mount.innerHTML = `
+    <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(7,26,43,0.85); backdrop-filter:blur(4px); z-index:3000; display:flex; align-items:center; justify-content:center; padding:20px;">
+      <div style="background:#ffffff; border-radius:12px; max-width:520px; width:100%; padding:24px; box-shadow:0 15px 35px rgba(0,0,0,0.3); border:1px solid #cbd5e1;">
+        
+        <h3 style="margin:0 0 12px; font-size:1.2rem; color:#0f172a; display:flex; align-items:center; gap:8px;">
+          <span>⚙️</span> Configurazione Packlink Pro API
+        </h3>
+        <p style="font-size:0.85rem; color:#64748b; margin-bottom:18px;">
+          Inserisci la tua API Key ottenuta dal pannello di controllo Packlink Pro (Impostazioni > Chiavi API) per integrare la comparazione e prenotazione automatica delle spedizioni con GLS, BRT, TNT e Poste Italiane.
+        </p>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:0.82rem; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">Ambiente API</label>
+          <select id="packlinkEnvSelect" class="hub-input">
+            <option value="production" ${curEnv === 'production' ? 'selected' : ''}>Produzione (api.packlink.com)</option>
+            <option value="sandbox" ${curEnv === 'sandbox' ? 'selected' : ''}>Sandbox Collaudo (apisandbox.packlink.com)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="font-size:0.82rem; font-weight:700; color:#0f172a; display:block; margin-bottom:6px;">Packlink Pro API Key</label>
+          <input type="password" id="packlinkApiKeyInput" class="hub-input" placeholder="es. pk_live_abc123456789..." value="${escapeHtml(curKey)}">
+          <small style="font-size:0.75rem; color:#94a3b8; display:block; margin-top:4px;">In assenza di chiave reale, il sistema attiva automaticamente la comparazione tariffe con algoritmo calibrato per il territorio nazionale.</small>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button class="btn-hub secondary" onclick="closePacklinkModal()">Chiudi</button>
+          <button class="btn-hub primary" onclick="savePacklinkConfig()">💾 Salva Configurazione</button>
+        </div>
+
+      </div>
+    </div>
+  `;
+};
+
+window.savePacklinkConfig = function() {
+  const key = (document.getElementById('packlinkApiKeyInput')?.value || '').trim();
+  const env = document.getElementById('packlinkEnvSelect')?.value || 'production';
+
+  window.PacklinkService.config.setApiKey(key);
+  window.PacklinkService.config.setEnv(env);
+
+  alert('✅ Configurazione Packlink Pro salvata con successo!');
+  closePacklinkModal();
+  renderPacklinkSection(document.getElementById('hubContentContainer'));
+};
+
 

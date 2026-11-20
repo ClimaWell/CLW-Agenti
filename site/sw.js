@@ -1,4 +1,4 @@
-const CACHE = 'offerte-agenti-v57';
+const CACHE = 'offerte-agenti-v58';
 const ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,10 @@ const ASSETS = [
   '/pianificazione-produzione.html',
   '/giro-visite.html',
   '/privacy.html',
+  '/b2b/',
+  '/b2b/index.html',
+  '/b2b/b2b.js',
+  '/b2b/styles.css',
   '/supabaseClient.js',
   '/offer-app.js',
   '/config/companyConfig.js',
@@ -19,6 +23,7 @@ const ASSETS = [
   '/commercial-hub/index.html',
   '/commercial-hub/styles.css',
   '/commercial-hub/app.js',
+  '/commercial-hub/packlink.js',
   '/commercial-hub/import-csv.html',
   '/manifest.webmanifest',
   '/favicon.svg'
