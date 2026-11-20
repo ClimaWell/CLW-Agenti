@@ -665,7 +665,6 @@
       console.warn('[Brevo Direct B2C] Errore invio diretto:', err.message);
     }
   }
-  }
 
   // 7. Stampa Ricevuta A4 Pulita
   function printB2cReceipt() {
