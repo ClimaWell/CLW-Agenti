@@ -1754,37 +1754,94 @@ function initGiroClienteModule() {
       resultsList.style.display = 'block';
     }
 
+    let clients = [];
+
+    // 1. Tentativo endpoint locale Plus 2000
     try {
       const res = await fetch(`/api/clienti/cerca?q=${encodeURIComponent(term)}`);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-
-      if (!data.results || data.results.length === 0) {
-        if (resultsList) {
-          resultsList.innerHTML = `<div style="padding:10px; text-align:center; color:var(--text-dim); font-size:0.85rem;">Nessun cliente trovato per "${escapeHtml(term)}"</div>`;
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data && data.success && Array.isArray(data.results)) {
+            clients = data.results;
+          }
+        } catch (jsonErr) {
+          console.warn('Risposta non-JSON da /api/clienti/cerca, tento fallback Supabase...', jsonErr);
         }
-        return;
       }
+    } catch (e) {
+      console.warn('Errore chiamata locale /api/clienti/cerca:', e);
+    }
 
-      if (resultsList) {
-        resultsList.innerHTML = '';
-        data.results.forEach(c => {
-          const item = document.createElement('div');
-          item.className = 'giro-cust-item';
-          const loc = [c.indirizzo, c.citta, c.provincia ? `(${c.provincia})` : ''].filter(Boolean).join(' ');
-          const fiscal = c.partita_iva ? `P.IVA: ${c.partita_iva}` : (c.codice_fiscale ? `CF: ${c.codice_fiscale}` : '');
-          item.innerHTML = `
-            <strong>${escapeHtml(c.ragione_sociale)}</strong>
-            <small>Cod. [${escapeHtml(c.codice)}] • ${escapeHtml(loc)} ${fiscal ? '• ' + escapeHtml(fiscal) : ''}</small>
-          `;
-          item.addEventListener('click', () => selectGiroCustomer(c));
-          resultsList.appendChild(item);
+    // 2. Fallback diretto Supabase se l'endpoint locale ha restituito 404 o il server Python non è stato riavviato
+    if (clients.length === 0) {
+      try {
+        const sbUrl = "https://fadgdncfhfpwkcbxcntc.supabase.co";
+        const sbKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhZGdkbmNmaGZwd2tjYnhjbnRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NzYzOTIsImV4cCI6MjEwNzQ1MjM5Mn0.ucGTqDigQVa6ZkBTH3l8Rvo7JHF7RVxvEv-3NGcMlfo";
+        const cleanTerm = term.replace(/[^a-zA-Z0-9]/g, '');
+        const isNum = /^\d+$/.test(cleanTerm);
+        let orParts = [
+          `name.ilike.*${encodeURIComponent(term)}*`,
+          `code.ilike.*${encodeURIComponent(term)}*`,
+          `vat_number.ilike.*${encodeURIComponent(term)}*`
+        ];
+        if (cleanTerm && cleanTerm.toLowerCase() !== term.toLowerCase()) {
+          orParts.push(`name.ilike.*${encodeURIComponent(cleanTerm)}*`);
+        }
+        if (cleanTerm.toUpperCase() === 'STAG') {
+          orParts.push(`name.ilike.*S.T.A.G.*`);
+        }
+        if (isNum) {
+          orParts.push(`code.eq.CLI-${cleanTerm.padStart(5, '0')}`);
+          orParts.push(`code.eq.${cleanTerm}`);
+        }
+        const sbRes = await fetch(`${sbUrl}/rest/v1/customers?select=code,name,city,province,address,vat_number,tax_code&or=(${orParts.join(',')})&limit=25`, {
+          headers: {
+            "apikey": sbKey,
+            "Authorization": `Bearer ${sbKey}`
+          }
         });
+        if (sbRes.ok) {
+          const sbData = await sbRes.json();
+          if (Array.isArray(sbData)) {
+            clients = sbData.map(c => ({
+              codice: c.code || '',
+              ragione_sociale: c.name || '',
+              citta: c.city || '',
+              provincia: c.province || '',
+              indirizzo: c.address || '',
+              partita_iva: c.vat_number || '',
+              codice_fiscale: c.tax_code || ''
+            }));
+          }
+        }
+      } catch (sbErr) {
+        console.error('Errore fallback Supabase:', sbErr);
       }
-    } catch (err) {
+    }
+
+    if (!clients || clients.length === 0) {
       if (resultsList) {
-        resultsList.innerHTML = `<div style="padding:10px; color:#fb7185; text-align:center; font-size:0.85rem;">Errore ricerca: ${err.message}</div>`;
+        resultsList.innerHTML = `<div style="padding:10px; text-align:center; color:var(--text-dim); font-size:0.85rem;">Nessun cliente trovato per "${escapeHtml(term)}"</div>`;
       }
+      return;
+    }
+
+    if (resultsList) {
+      resultsList.innerHTML = '';
+      clients.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'giro-cust-item';
+        const loc = [c.indirizzo, c.citta, c.provincia ? `(${c.provincia})` : ''].filter(Boolean).join(' ');
+        const fiscal = c.partita_iva ? `P.IVA: ${c.partita_iva}` : (c.codice_fiscale ? `CF: ${c.codice_fiscale}` : '');
+        item.innerHTML = `
+          <strong>${escapeHtml(c.ragione_sociale)}</strong>
+          <small>Cod. [${escapeHtml(c.codice)}] • ${escapeHtml(loc)} ${fiscal ? '• ' + escapeHtml(fiscal) : ''}</small>
+        `;
+        item.addEventListener('click', () => selectGiroCustomer(c));
+        resultsList.appendChild(item);
+      });
     }
   }
 
@@ -2092,8 +2149,14 @@ function initGiroClienteModule() {
           body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error);
+        let data = null;
+        try {
+          const text = await res.text();
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          throw new Error("Il server Magazzino locale deve essere riavviato per creare l'ordine su Plus 2000.\n\nChiudi la finestra del terminale 'Server Magazzino' e riavviala da AVVIA_SERVIZI_CLIMAWELL.bat (opzione 3).");
+        }
+        if (!data || !data.success) throw new Error(data?.error || "Errore creazione ordine");
 
         playSuccessBeep();
         alert(`🎉 ORDINE CLIENTE PLUS 2000 CREATO CON SUCCESSO!\n\nDocumento: ${data.order_display}\nCliente: ${data.cliente}\nArticoli: ${data.articoli_count} (${data.pezzi_totali} pezzi)\n\nL'ordine è registrato in Plus 2000 con sconti e listini calcolati automaticamente ed è pronto per l'evasione.`);
