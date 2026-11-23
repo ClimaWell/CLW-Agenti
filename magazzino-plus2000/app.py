@@ -609,10 +609,18 @@ def db_search_clienti(term):
     if not term:
         return []
 
-    # 1. Ricerca diretta su SQL Server Plus 2000 (tabella Conti)
+    clean_term = re.sub(r'[^a-zA-Z0-9]', '', term)
+    is_numeric = term.isdigit()
+    term_num = int(term) if is_numeric else None
+
+    # 1. Ricerca diretta su SQL Server Plus 2000 (tabella CliFor / Conti)
     try:
         conn = get_connection()
         cursor = conn.cursor()
+        
+        # Gestione matching avanzato:
+        # - Codice numerico esatto (es. 32 trova JConto = 32 o '00032')
+        # - Ragione sociale con o senza punti/spazi (es. 'stag' trova 'S.T.A.G. SRL')
         sql = """
         SELECT TOP 25
             RTRIM(c.JConto) as codice,
@@ -622,27 +630,71 @@ def db_search_clienti(term):
             RTRIM(ISNULL(c.Indirizzo, '')) as indirizzo,
             RTRIM(ISNULL(c.PartitaIva, '')) as partita_iva,
             RTRIM(ISNULL(c.CodFiscale, '')) as codice_fiscale
-        FROM Conti c WITH (NOLOCK)
-        WHERE c.TpConto = 'C' AND c.Bloccato = 0
+        FROM CliFor c WITH (NOLOCK)
+        WHERE c.TpConto = 'C' AND (c.Bloccato = 0 OR c.Bloccato IS NULL)
           AND (
             c.RagSoc LIKE ? 
             OR c.RagSup LIKE ?
-            OR c.JConto LIKE ? 
+            OR REPLACE(REPLACE(c.RagSoc, '.', ''), ' ', '') LIKE ?
+            OR c.JConto = ?
+            OR CAST(c.JConto AS VARCHAR) LIKE ?
             OR c.PartitaIva LIKE ? 
             OR c.CodFiscale LIKE ?
           )
         ORDER BY c.RagSoc
         """
         like_p = f"%{term}%"
+        like_clean = f"%{clean_term}%" if clean_term else like_p
         like_start = f"{term}%"
-        cursor.execute(sql, like_p, like_p, like_start, like_start, like_start)
+        num_param = term_num if term_num is not None else -999999
+        
+        cursor.execute(sql, like_p, like_p, like_clean, num_param, like_start, like_start, like_start)
         rows = cursor.fetchall()
         cols = [c[0].lower() for c in cursor.description]
         results = [dict(zip(cols, r)) for r in rows]
         conn.close()
-        return results
+        if results:
+            return results
     except Exception as sql_err:
-        print(f"⚠️ [Clienti Plus] Errore connessione diretta SQL ({sql_err}), fallback a Supabase...", flush=True)
+        print(f"⚠️ [Clienti Plus CliFor] Errore ({sql_err}), tento fallback Conti / Supabase...", flush=True)
+
+    # 1b. Tentativo su tabella Conti se CliFor non ha restituito o ha dato errore
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        sql_conti = """
+        SELECT TOP 25
+            RTRIM(c.JConto) as codice,
+            RTRIM(LTRIM(c.RagSoc + CASE WHEN c.RagSup IS NOT NULL AND RTRIM(c.RagSup) <> '' THEN ' ' + RTRIM(c.RagSup) ELSE '' END)) as ragione_sociale,
+            RTRIM(ISNULL(c.Citta, '')) as citta,
+            RTRIM(ISNULL(c.Provincia, '')) as provincia,
+            RTRIM(ISNULL(c.Indirizzo, '')) as indirizzo,
+            RTRIM(ISNULL(c.PartitaIva, '')) as partita_iva,
+            RTRIM(ISNULL(c.CodFiscale, '')) as codice_fiscale
+        FROM Conti c WITH (NOLOCK)
+        WHERE c.TpConto = 'C' AND (c.Bloccato = 0 OR c.Bloccato IS NULL)
+          AND (
+            c.RagSoc LIKE ? 
+            OR REPLACE(REPLACE(c.RagSoc, '.', ''), ' ', '') LIKE ?
+            OR c.JConto = ?
+            OR CAST(c.JConto AS VARCHAR) LIKE ?
+            OR c.PartitaIva LIKE ?
+          )
+        ORDER BY c.RagSoc
+        """
+        like_p = f"%{term}%"
+        like_clean = f"%{clean_term}%" if clean_term else like_p
+        like_start = f"{term}%"
+        num_param = term_num if term_num is not None else -999999
+        cursor.execute(sql_conti, like_p, like_clean, num_param, like_start, like_start)
+        rows = cursor.fetchall()
+        cols = [c[0].lower() for c in cursor.description]
+        results = [dict(zip(cols, r)) for r in rows]
+        conn.close()
+        if results:
+            return results
+    except Exception as conti_err:
+        pass
 
     # 2. Fallback a Supabase se SQL Server temporaneamente offline
     try:
@@ -651,8 +703,22 @@ def db_search_clienti(term):
         sb_key = cfg.get("service_role_key") or cfg.get("anon_key")
         if sb_url and sb_key:
             import urllib.request
-            term_enc = urllib.parse.quote(term)
-            req_url = f"{sb_url}/rest/v1/customers?select=code,name,city,province,address,vat_number,tax_code&or=(name.ilike.*{term_enc}*,code.ilike.*{term_enc}*,vat_number.ilike.*{term_enc}*)&limit=25"
+            # Ricerca multi-variante su Supabase per gestire sia '32', 'CLI-00032', 'stag', 's.t.a.g.'
+            or_parts = [
+                f"name.ilike.*{urllib.parse.quote(term)}*",
+                f"code.ilike.*{urllib.parse.quote(term)}*",
+                f"vat_number.ilike.*{urllib.parse.quote(term)}*"
+            ]
+            if is_numeric:
+                or_parts.append(f"code.eq.CLI-{term.zfill(5)}")
+                or_parts.append(f"code.eq.{term}")
+            if clean_term and clean_term.lower() != term.lower():
+                or_parts.append(f"name.ilike.*{urllib.parse.quote(clean_term)}*")
+            # Gestione specifica S.T.A.G. se cercato senza punti
+            if clean_term.upper() == "STAG":
+                or_parts.append("name.ilike.*S.T.A.G.*")
+            
+            req_url = f"{sb_url}/rest/v1/customers?select=code,name,city,province,address,vat_number,tax_code&or=({','.join(or_parts)})&limit=25"
             req = urllib.request.Request(req_url, headers={"apikey": sb_key, "Authorization": f"Bearer {sb_key}"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -835,10 +901,13 @@ class WarehouseRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
 
     def end_headers(self):
-        # Header CORS e Cache-Control per le API
+        # Header CORS e Cache-Control per forzare il refresh di HTML, JS e CSS ed evitare cache obsoleta
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         super().end_headers()
 
     def do_OPTIONS(self):

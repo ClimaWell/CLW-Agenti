@@ -1821,10 +1821,21 @@
       if (filterCustInput) {
         filterCustInput.oninput = () => {
           const q = filterCustInput.value.trim().toLowerCase();
+          const qClean = q.replace(/[^a-z0-9]/g, '');
+          const qNum = /^\d+$/.test(qClean) ? parseInt(qClean, 10) : null;
           const filtered = allCustomers.filter(c => {
             const name = String(c.name || '').toLowerCase();
+            const nameClean = name.replace(/[^a-z0-9]/g, '');
             const code = String(c.code || '').toLowerCase();
+            const codeClean = code.replace(/[^a-z0-9]/g, '');
+            const codeNum = parseInt(code.replace(/\D/g, ''), 10);
             const piva = String(c.vat_number || '').toLowerCase();
+            
+            // Match esatto numerico (es. 32 trova CLI-00032 o 00032)
+            if (qNum !== null && !isNaN(codeNum) && codeNum === qNum) return true;
+            // Match pulito senza punteggiatura (es. stag trova S.T.A.G. SRL)
+            if (qClean && nameClean.includes(qClean)) return true;
+            if (qClean && codeClean.includes(qClean)) return true;
             return name.includes(q) || code.includes(q) || piva.includes(q);
           });
           custSelect.innerHTML = '<option value="">Seleziona cliente dall\'anagrafica…</option>' +
