@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestione Utenti & Password — Climawell Hub</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabaseClient.js"></script>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --teal: #0f766e;
+      --navy: #0f172a;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+    }
+
+    body {
+      background: #f8fafc;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      margin: 0;
+      padding-bottom: 60px;
+    }
+
+    .topbar {
+      height: 68px;
+      background: #0b2942;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.15);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #4f46e5;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+
+    .brand div strong {
+      font-size: 1.05rem;
+      display: block;
+    }
+
+    .brand div small {
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+
+    .heading-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-nav {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-nav:hover {
+      background: rgba(255,255,255,0.22);
+    }
+
+    .page-shell {
+      max-width: 1200px;
+      margin: 28px auto 0;
+      padding: 0 20px;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+      font-size: 1.8rem;
+      color: var(--navy);
+      margin: 0 0 6px 0;
+      font-weight: 800;
+    }
+
+    .page-header p {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    /* Stats Grid */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .stat-pill {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+
+    .stat-pill small {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .stat-pill .num {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--navy);
+      line-height: 1.1;
+    }
+
+    .stat-pill .sub {
+      font-size: 0.8rem;
+      color: #10b981;
+      font-weight: 600;
+      margin-top: 3px;
+      display: block;
+    }
+
+    /* Toolbar & Search */
+    .toolbar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 14px 10px 38px;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      font-size: 0.9rem;
+      background: #fff;
+      outline: none;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+    }
+
+    .role-filters {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .filter-btn {
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover {
+      background: #f1f5f9;
+      color: var(--navy);
+    }
+
+    .filter-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .btn-create {
+      background: linear-gradient(135deg, #4f46e5, #4338ca);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 9px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(79,70,229,0.25);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.1s;
+    }
+
+    .btn-create:hover {
+      transform: translateY(-1px);
+    }
+
+    /* Form Container Card */
+    .form-card {
+      background: #fff;
+      border: 2px solid #e0e7ff;
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px rgba(79,70,229,0.06);
+    }
+
+    .form-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--navy);
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .field-input, .field-select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: #fff;
+      outline: none;
+    }
+
+    .field-input:focus, .field-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+
+    .perm-checkboxes {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .checkbox-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .checkbox-item input {
+      width: 17px;
+      height: 17px;
+      cursor: pointer;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-save {
+      background: #10b981;
+      color: #fff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(16,185,129,0.25);
+    }
+
+    /* Table Card */
+    .table-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    thead th {
+      background: #f8fafc;
+      padding: 14px 16px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      font-weight: 750;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.9rem;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover {
+      background: #fdfefe;
+    }
+
+    /* Role Badges */
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    .role-badge.admin { background: #fef3c7; color: #b45309; }
+    .role-badge.agente, .role-badge.agent { background: #e0f2fe; color: #0369a1; }
+    .role-badge.magazziniere { background: #ccfbf1; color: #0f766e; }
+    .role-badge.cliente_b2b { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+    .role-badge.capo_area { background: #fae8ff; color: #86198f; }
+
+    .btn-action {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: #334155;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+
+    .btn-action:hover {
+      background: #e2e8f0;
+    }
+
+    .btn-copy {
+      background: #e0f2fe;
+      color: #0369a1;
+      border-color: #bae6fd;
+    }
+
+    .btn-copy:hover {
+      background: #bae6fd;
+    }
+
+    .btn-delete {
+      color: #ef4444;
+      border-color: #fecaca;
+      background: #fff5f5;
+    }
+
+    .btn-delete:hover {
+      background: #fee2e2;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      z-index: 1000;
+      border-left: 4px solid #10b981;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.25s ease;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">👥</span>
+      <div>
+        <strong>CLIMAWELL HUB</strong>
+        <small>Gestione Accessi, Password & Clienti B2B</small>
+      </div>
+    </div>
+    <div class="heading-actions">
+      <a class="btn-nav" href="/">← Dashboard / Offerte</a>
+      <a class="btn-nav" href="/b2b/" target="_blank" style="background: rgba(2,132,199,0.3); border-color:#38bdf8;">🏢 Portale B2B</a>
+      <a class="btn-nav" href="/gestione-ordini.html">📦 Ordini & Spedizioni</a>
+      <a class="btn-nav" href="/magazzino.html">📦 Magazzino Mobile</a>
+      <a class="btn-nav" href="/configurazione">⚙️ Configurazione</a>
+    </div>
+  </header>
+
+  <main class="page-shell">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div>
+        <h1>👥 Utenti, Password & Accessi B2B</h1>
+        <p>Configura le credenziali di accesso per Amministratori, Agenti, Magazzinieri e Clienti Partner B2B collegati a Plus 2000.</p>
+      </div>
+      <div>
+        <button id="btnToggleForm" class="btn-create" onclick="toggleUserForm(true)">
+          <span>➕</span> Nuovo Utente / Accesso
+        </button>
+      </div>
+    </div>
+
+    <!-- STATS ROW -->
+    <div class="stats-row">
+      <div class="stat-pill">
+        <small>Utenti Attivi</small>
+        <div id="statTotalUsers" class="num">0</div>
+        <span class="sub">Totale nel database</span>
+      </div>
+      <div class="stat-pill">
+        <small>Clienti Partner B2B</small>
+        <div id="statB2BUsers" class="num" style="color:#6d28d9;">0</div>
+        <span class="sub" style="color:#6d28d9;">Accesso listini e giacenze</span>
+      </div>
+      <div class="stat-pill">
+        <small>Agenti di Vendita</small>
+        <div id="statAgentUsers" class="num" style="color:#0284c7;">0</div>
+        <span class="sub" style="color:#0284c7;">Con codice agente Plus</span>
+      </div>
+      <div class="stat-pill">
+        <small>Magazzinieri</small>
+        <div id="statWhUsers" class="num" style="color:#0f766e;">0</div>
+        <span class="sub" style="color:#0f766e;">Picking e terminali barcode</span>
+      </div>
+    </div>
+
+    <!-- FORM CARD (CREA / MODIFICA UTENTE) -->
+    <div id="userFormCard" class="form-card" style="display: none;">
+      <h3 id="formTitle" class="form-title">➕ Crea Nuovo Accesso / Utente</h3>
+      <input type="hidden" id="editUserId">
+
+      <div class="form-grid">
+        <div>
+          <label class="field-label">Nome Utente (Login) *</label>
+          <input type="text" id="inputUsername" class="field-input" placeholder="es. stag, f.rossi o email@azienda.it">
+        </div>
+        <div>
+          <label class="field-label">Password *</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="inputPassword" class="field-input" placeholder="Password in chiaro per l'operatore">
+            <button type="button" class="btn-action" onclick="generateRandomPassword()" title="Genera password casuale sicura">🎲</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Nome Operatore / Ragione Sociale *</label>
+          <input type="text" id="inputFullName" class="field-input" placeholder="es. S.T.A.G. SRL o Mario Rossi">
+        </div>
+        <div>
+          <label class="field-label">Ruolo Operativo *</label>
+          <select id="selectRole" class="field-select" onchange="handleRoleChange()">
+            <option value="agente">Agente Commerciale (Ordini / Offerte)</option>
+            <option value="magazziniere">Operatore Magazzino (Picking & Barcode)</option>
+            <option value="cliente_b2b" selected>🏢 Cliente B2B (Solo Giacenze Positive & Ordini Cantiere)</option>
+            <option value="admin">Amministratore (Controllo Totale)</option>
+            <option value="capo_area">Capo Area Commerciale</option>
+          </select>
+        </div>
+        <div id="colCustomerSelect" style="display: block;">
+          <label class="field-label" style="color:#0f766e;">🏢 Anagrafica Cliente Plus 2000 *</label>
+          <select id="selectCustomerCode" class="field-select" style="border-color:#0f766e;">
+            <option value="">Caricamento anagrafiche Plus 2000 in corso...</option>
+          </select>
+        </div>
+        <div id="colAgentSelect" style="display: none;">
+          <label class="field-label">Codice Agente Plus 2000</label>
+          <select id="selectAgentCode" class="field-select">
+            <option value="">Nessun agente collegato (Generico)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="perm-checkboxes">
+        <label class="checkbox-item">
+          <input type="checkbox" id="chkActive" checked>
+          <span>Account Attivo (Consenti accesso)</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="chkCanOrders" checked>
+          <span>Abilita Inserimento Ordini & Preventivi</span>
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" id="chkCanWarehouse">
+          <span>Abilita Modulo Magazzino & Picking Barcode</span>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" onclick="toggleUserForm(false)">Annulla</button>
+        <button type="button" id="btnSaveUser" class="btn-save" onclick="saveUserRecord()">💾 Salva Utente</button>
+      </div>
+    </div>
+
+    <!-- TOOLBAR & FILTERS -->
+    <div class="toolbar-row">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchUserInput" placeholder="Cerca rapidamente utente per nome, username o codice cliente..." oninput="applyUserFilters()">
+      </div>
+      <div class="role-filters">
+        <button class="filter-btn active" data-role="all" onclick="setRoleFilter('all', this)">Tutti (<span id="cntAll">0</span>)</button>
+        <button class="filter-btn" data-role="cliente_b2b" onclick="setRoleFilter('cliente_b2b', this)">Clienti B2B (<span id="cntB2B">0</span>)</button>
+        <button class="filter-btn" data-role="agente" onclick="setRoleFilter('agente', this)">Agenti (<span id="cntAgents">0</span>)</button>
+        <button class="filter-btn" data-role="magazziniere" onclick="setRoleFilter('magazziniere', this)">Magazzino (<span id="cntWh">0</span>)</button>
+        <button class="filter-btn" data-role="admin" onclick="setRoleFilter('admin', this)">Admin (<span id="cntAdmin">0</span>)</button>
+      </div>
+    </div>
+
+    <!-- USERS TABLE -->
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 80px;">Stato</th>
+            <th>Nome Utente</th>
+            <th>Nome Operatore / Cliente</th>
+            <th>Ruolo</th>
+            <th>Collegamento Plus 2000</th>
+            <th>Password</th>
+            <th style="text-align: right; width: 140px;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr>
+            <td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">Caricamento elenco utenti in corso...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <div id="toast" class="toast">Notifica</div>
+
+  <script>
+    let allUsers = [];
+    let customersList = [];
+    let currentRoleFilter = 'all';
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadInitialData();
+      handleRoleChange();
+    });
+
+    async function loadInitialData() {
+      // 1. Carica lista clienti Plus 2000 per il select
+      loadCustomersList();
+
+      // 2. Carica utenti
+      await fetchUsers();
+    }
+
+    async function loadCustomersList() {
+      try {
+        if (window.ClwData && typeof window.ClwData.getCustomers === 'function') {
+          customersList = await window.ClwData.getCustomers();
+          populateCustomerDropdown();
+        }
+      } catch (err) {
+        console.warn('Errore lettura anagrafiche clienti:', err);
+      }
+    }
+
+    function populateCustomerDropdown() {
+      const sel = document.getElementById('selectCustomerCode');
+      if (!sel) return;
+      if (!customersList || customersList.length === 0) {
+        sel.innerHTML = '<option value="">Nessun cliente sincronizzato da Plus</option>';
+        return;
+      }
+      sel.innerHTML = '<option value="">-- Seleziona Anagrafica Cliente da Plus 2000 --</option>' +
+        customersList.map(c => {
+          const code = c.code || '';
+          const name = c.name || '';
+          const loc = [c.city, c.province ? `(${c.province})` : ''].filter(Boolean).join(' ');
+          return `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(name)} ${loc ? '• ' + escapeHtml(loc) : ''}</option>`;
+        }).join('');
+    }
+
+    async function fetchUsers() {
+      try {
+        if (window.ClwData && typeof window.ClwData.getUsers === 'function') {
+          allUsers = await window.ClwData.getUsers();
+        } else {
+          // Fallback locale
+          allUsers = [
+            { id: '1', username: 'admin', name: 'Admin Climawell', role: 'admin', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: true },
+            { id: '2', username: 'cliente.b2b', name: 'S.T.A.G. S.R.L. (Cliente B2B)', role: 'cliente_b2b', agent_code: '00032', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false },
+            { id: '3', username: 'magazzino', name: 'Operatore Magazzino', role: 'magazziniere', agent_code: 'MAG01', active: true, password_clear: 'clw2026!', can_orders: false, can_warehouse: true },
+            { id: '4', username: 'f.pontrelli', name: 'Francesco Pontrelli', role: 'agente', agent_code: '217', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false }
+          ];
+        }
+        updateCounts();
+        applyUserFilters();
+      } catch (err) {
+        console.error('Errore caricamento utenti:', err);
+        showToast('Errore durante la lettura degli utenti: ' + err.message, true);
+      }
+    }
+
+    function updateCounts() {
+      const activeUsers = allUsers.filter(u => u.active !== false);
+      document.getElementById('statTotalUsers').textContent = activeUsers.length;
+      document.getElementById('statB2BUsers').textContent = activeUsers.filter(u => u.role === 'cliente_b2b').length;
+      document.getElementById('statAgentUsers').textContent = activeUsers.filter(u => u.role === 'agente' || u.role === 'agent').length;
+      document.getElementById('statWhUsers').textContent = activeUsers.filter(u => u.role === 'magazziniere').length;
+
+      document.getElementById('cntAll').textContent = allUsers.length;
+      document.getElementById('cntB2B').textContent = allUsers.filter(u => u.role === 'cliente_b2b').length;
+      document.getElementById('cntAgents').textContent = allUsers.filter(u => u.role === 'agente' || u.role === 'agent').length;
+      document.getElementById('cntWh').textContent = allUsers.filter(u => u.role === 'magazziniere').length;
+      document.getElementById('cntAdmin').textContent = allUsers.filter(u => u.role === 'admin').length;
+    }
+
+    function setRoleFilter(role, btn) {
+      currentRoleFilter = role;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyUserFilters();
+    }
+
+    function applyUserFilters() {
+      const q = (document.getElementById('searchUserInput')?.value || '').trim().toLowerCase();
+      let filtered = allUsers;
+
+      if (currentRoleFilter !== 'all') {
+        if (currentRoleFilter === 'agente') {
+          filtered = filtered.filter(u => u.role === 'agente' || u.role === 'agent');
+        } else {
+          filtered = filtered.filter(u => u.role === currentRoleFilter);
+        }
+      }
+
+      if (q) {
+        filtered = filtered.filter(u => {
+          const uName = String(u.username || '').toLowerCase();
+          const fName = String(u.name || '').toLowerCase();
+          const code = String(u.agent_code || '').toLowerCase();
+          return uName.includes(q) || fName.includes(q) || code.includes(q);
+        });
+      }
+
+      renderUsersTable(filtered);
+    }
+
+    function renderUsersTable(users) {
+      const tbody = document.getElementById('usersTableBody');
+      if (!tbody) return;
+
+      if (!users || users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:36px; color:var(--text-muted);">Nessun utente trovato con i filtri correnti.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => {
+        const isActive = u.active !== false;
+        const statusBadge = isActive
+          ? '<span style="color:#10b981; font-weight:700;">🟢 Attivo</span>'
+          : '<span style="color:#ef4444; font-weight:700;">🔴 Disattivo</span>';
+
+        const role = u.role || 'agente';
+        let roleClass = role;
+        let roleLabel = 'Agente';
+        if (role === 'admin') roleLabel = 'Amministrazione';
+        else if (role === 'magazziniere') roleLabel = 'Magazzino';
+        else if (role === 'cliente_b2b') roleLabel = '🏢 Cliente B2B';
+        else if (role === 'capo_area') roleLabel = 'Capo Area';
+
+        const targetCode = u.agent_code || '-';
+        const targetHtml = (role === 'cliente_b2b')
+          ? `<strong style="color:#6d28d9; font-family:monospace;">🏢 Cod. Plus: ${escapeHtml(targetCode)}</strong>`
+          : `<span style="font-family:monospace; color:#475569;">${escapeHtml(targetCode)}</span>`;
+
+        const pwd = u.password_clear || '••••••••';
+
+        return `
+          <tr>
+            <td>${statusBadge}</td>
+            <td style="font-weight:750; color:var(--navy); font-family:monospace;">${escapeHtml(u.username)}</td>
+            <td style="font-weight:600;">${escapeHtml(u.name || '-')}</td>
+            <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
+            <td>${targetHtml}</td>
+            <td style="font-family:monospace; background:#f8fafc; font-size:0.88rem;">
+              <strong>${escapeHtml(pwd)}</strong>
+              ${u.password_clear ? `<button type="button" class="btn-action btn-copy" onclick="copyCredentials('${escapeHtml(u.username)}', '${escapeHtml(u.password_clear)}', '${escapeHtml(u.role)}')">📋 Copia</button>` : ''}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+              <button class="btn-action" onclick="editUser('${u.id}')">✏️ Modifica</button>
+              <button class="btn-action btn-delete" onclick="deleteUserRecord('${u.id}', '${escapeHtml(u.username)}')">🗑️</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function toggleUserForm(show) {
+      const card = document.getElementById('userFormCard');
+      if (!card) return;
+      if (show) {
+        resetForm();
+        card.style.display = 'block';
+        card.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        card.style.display = 'none';
+      }
+    }
+
+    function handleRoleChange() {
+      const role = document.getElementById('selectRole').value;
+      const colCust = document.getElementById('colCustomerSelect');
+      const colAgent = document.getElementById('colAgentSelect');
+      const chkWh = document.getElementById('chkCanWarehouse');
+      const chkOrd = document.getElementById('chkCanOrders');
+
+      if (role === 'cliente_b2b') {
+        colCust.style.display = 'block';
+        colAgent.style.display = 'none';
+        chkWh.checked = false;
+        chkOrd.checked = true;
+      } else if (role === 'agente') {
+        colCust.style.display = 'none';
+        colAgent.style.display = 'block';
+        chkWh.checked = false;
+        chkOrd.checked = true;
+      } else if (role === 'magazziniere') {
+        colCust.style.display = 'none';
+        colAgent.style.display = 'none';
+        chkWh.checked = true;
+        chkOrd.checked = false;
+      } else {
+        colCust.style.display = 'none';
+        colAgent.style.display = 'block';
+        chkWh.checked = true;
+        chkOrd.checked = true;
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('editUserId').value = '';
+      document.getElementById('inputUsername').value = '';
+      document.getElementById('inputUsername').disabled = false;
+      document.getElementById('inputPassword').value = '';
+      document.getElementById('inputFullName').value = '';
+      document.getElementById('selectRole').value = 'cliente_b2b';
+      document.getElementById('selectCustomerCode').value = '';
+      document.getElementById('selectAgentCode').value = '';
+      document.getElementById('chkActive').checked = true;
+      document.getElementById('chkCanOrders').checked = true;
+      document.getElementById('chkCanWarehouse').checked = false;
+      document.getElementById('formTitle').textContent = '➕ Crea Nuovo Accesso / Utente';
+      handleRoleChange();
+    }
+
+    function generateRandomPassword() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!#@';
+      let pwd = 'Clw';
+      for (let i = 0; i < 6; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      document.getElementById('inputPassword').value = pwd;
+    }
+
+    function editUser(userId) {
+      const u = allUsers.find(x => String(x.id) === String(userId));
+      if (!u) return;
+
+      document.getElementById('editUserId').value = u.id;
+      document.getElementById('inputUsername').value = u.username;
+      document.getElementById('inputUsername').disabled = true;
+      document.getElementById('inputPassword').value = u.password_clear || '';
+      document.getElementById('inputFullName').value = u.name || '';
+      document.getElementById('selectRole').value = u.role || 'agente';
+      handleRoleChange();
+
+      if (u.role === 'cliente_b2b') {
+        document.getElementById('selectCustomerCode').value = u.agent_code || '';
+      } else {
+        document.getElementById('selectAgentCode').value = u.agent_code || '';
+      }
+
+      document.getElementById('chkActive').checked = u.active !== false;
+      document.getElementById('chkCanOrders').checked = Boolean(u.can_orders);
+      document.getElementById('chkCanWarehouse').checked = Boolean(u.can_warehouse);
+
+      document.getElementById('formTitle').textContent = `✏️ Modifica Utente: ${u.username}`;
+      const card = document.getElementById('userFormCard');
+      card.style.display = 'block';
+      card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function saveUserRecord() {
+      const id = document.getElementById('editUserId').value || null;
+      const username = document.getElementById('inputUsername').value.trim();
+      const password = document.getElementById('inputPassword').value.trim();
+      const name = document.getElementById('inputFullName').value.trim();
+      const role = document.getElementById('selectRole').value;
+      const active = document.getElementById('chkActive').checked;
+      const can_orders = document.getElementById('chkCanOrders').checked;
+      const can_warehouse = document.getElementById('chkCanWarehouse').checked;
+
+      let agentCode = null;
+      if (role === 'cliente_b2b') {
+        agentCode = document.getElementById('selectCustomerCode').value || null;
+      } else {
+        agentCode = document.getElementById('selectAgentCode').value || null;
+      }
+
+      if (!username || !name) {
+        alert('Nome utente e nome operatore sono obbligatori.');
+        return;
+      }
+      if (!id && !password) {
+        alert('Per un nuovo utente la password è obbligatoria.');
+        return;
+      }
+
+      const btnSave = document.getElementById('btnSaveUser');
+      btnSave.disabled = true;
+      btnSave.textContent = 'Salvataggio in corso...';
+
+      try {
+        if (window.ClwData && typeof window.ClwData.saveUser === 'function') {
+          await window.ClwData.saveUser({
+            id,
+            username,
+            password,
+            name,
+            role,
+            agentCode,
+            active,
+            can_orders,
+            can_warehouse
+          });
+        }
+        showToast(`Utente '${username}' salvato con successo!`);
+        toggleUserForm(false);
+        await fetchUsers();
+      } catch (err) {
+        console.error('Errore salvataggio utente:', err);
+        alert('Errore durante il salvataggio: ' + err.message);
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = '💾 Salva Utente';
+      }
+    }
+
+    async function deleteUserRecord(id, username) {
+      if (!confirm(`Sei sicuro di voler eliminare l'accesso per l'utente '${username}'?`)) return;
+      try {
+        if (window.ClwData && typeof window.ClwData.deleteUser === 'function') {
+          await window.ClwData.deleteUser(id);
+        } else {
+          allUsers = allUsers.filter(u => String(u.id) !== String(id));
+        }
+        showToast(`Utente '${username}' eliminato.`);
+        await fetchUsers();
+      } catch (err) {
+        alert('Errore eliminazione utente: ' + err.message);
+      }
+    }
+
+    function copyCredentials(user, pwd, role) {
+      const isB2B = role === 'cliente_b2b';
+      const link = isB2B ? window.location.origin + '/b2b/' : window.location.origin + '/';
+      const msg = `Portale Climawell ${isB2B ? 'B2B' : ''}\nLink: ${link}\nUtente: ${user}\nPassword: ${pwd}`;
+      navigator.clipboard.writeText(msg).then(() => {
+        showToast('📋 Credenziali e link copiati negli appunti!');
+      }).catch(() => {
+        prompt('Copia manualmente le credenziali:', msg);
+      });
+    }
+
+    function showToast(msg, isErr = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.borderLeftColor = isErr ? '#ef4444' : '#10b981';
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

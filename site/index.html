@@ -984,8 +984,8 @@
           style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🚀 Area di Sviluppo</a>
         <a id="warehouseTop" class="btn-top" href="/magazzino.html"
           style="background:#0f766e; color:#fff; border-color:#0f766e; font-weight:700;">📦 Magazzino Mobile</a>
-        <button id="adminUsersTop" class="btn-top hidden"
-          style="background:#4f46e5; color:#fff; border-color:#4f46e5; font-weight:700;">👥 Utenti & Password</button>
+        <a id="adminUsersTop" class="btn-top hidden" href="/gestione-utenti.html"
+          style="background:#4f46e5; color:#fff; border-color:#4f46e5; font-weight:700;">👥 Utenti & Password</a>
         <a id="adminOrdersTop" class="btn-top hidden" href="/gestione-ordini.html">📦 Ordini & Spedizioni</a>
         <a id="visitsTop" class="btn-top" href="/giro-visite.html">📅 Giro Visite</a>
         <a id="adminConfigTop" class="btn-top" href="/configurazione">⚙️ Configurazione</a>
@@ -1070,9 +1070,9 @@
           <a class="btn-sub" id="warehouseBtn" href="/magazzino.html"
             style="background:#0f766e; color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(15,118,110,0.25);">📦
             Magazzino, Picking & Barcode</a>
-          <button class="btn-sub hidden" id="adminUsersBtn"
+          <a class="btn-sub hidden" id="adminUsersBtn" href="/gestione-utenti.html"
             style="background:#4f46e5; color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">👥
-            Gestione Accessi & Password</button>
+            Gestione Accessi & Password</a>
           <a class="btn-sub hidden" id="adminOrdersBtn" href="/gestione-ordini.html">📦 Gestione Ordini & Spedizioni</a>
           <a class="btn-sub" id="visitsBtn" href="/giro-visite.html">📅 Piano Marketing & Giro Visite</a>
           <a class="btn-sub" id="adminConfigBtn" href="/configurazione">⚙️ Configurazione</a>
@@ -2010,8 +2010,9 @@
       if (modalUsers) modalUsers.classList.add('hidden');
     }
 
-    if ($('adminUsersTop')) $('adminUsersTop').onclick = openUsersModal;
-    if ($('adminUsersBtn')) $('adminUsersBtn').onclick = openUsersModal;
+    // Navigazione diretta alla pagina /gestione-utenti.html
+    // Lascia che il browser segua naturalmente il link href="/gestione-utenti.html"
+    // (modalUsers tenuto come supporto legacy)
     if (btnCloseUsersModal) btnCloseUsersModal.onclick = closeUsersModal;
     if (btnCancelUserForm) btnCancelUserForm.onclick = () => {
       userFormContainer.classList.add('hidden');

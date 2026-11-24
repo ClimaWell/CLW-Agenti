@@ -978,12 +978,14 @@
       <div class="top-actions">
         <a id="commercialHubTop" class="btn-top" href="/commercial-hub/index.html"
           style="background:linear-gradient(135deg, #0284c7, #4f46e5); color:#fff; border-color:#0284c7; font-weight:700;">💼 Commercial Hub</a>
+        <a id="b2bPortalTop" class="btn-top" href="/b2b/" target="_blank"
+          style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🏢 Portale B2B</a>
         <a id="devAreaTop" class="btn-top" href="/area-sviluppo.html"
           style="background:#0284c7; color:#fff; border-color:#0284c7; font-weight:700;">🚀 Area di Sviluppo</a>
         <a id="warehouseTop" class="btn-top" href="/magazzino.html"
           style="background:#0f766e; color:#fff; border-color:#0f766e; font-weight:700;">📦 Magazzino Mobile</a>
-        <button id="adminUsersTop" class="btn-top hidden"
-          style="background:#4f46e5; color:#fff; border-color:#4f46e5; font-weight:700;">👥 Utenti & Password</button>
+        <a id="adminUsersTop" class="btn-top hidden" href="/gestione-utenti.html"
+          style="background:#4f46e5; color:#fff; border-color:#4f46e5; font-weight:700;">👥 Utenti & Password</a>
         <a id="adminOrdersTop" class="btn-top hidden" href="/gestione-ordini.html">📦 Ordini & Spedizioni</a>
         <a id="visitsTop" class="btn-top" href="/giro-visite.html">📅 Giro Visite</a>
         <a id="adminConfigTop" class="btn-top" href="/configurazione">⚙️ Configurazione</a>
@@ -1059,15 +1061,18 @@
           <a class="btn-sub" id="commercialHubBtn" href="/commercial-hub/index.html"
             style="background:linear-gradient(135deg, #0284c7, #4f46e5); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">💼
             Commercial Hub (CRM, WhatsApp, Pipeline)</a>
+          <a class="btn-sub" id="b2bPortalBtn" href="/b2b/" target="_blank"
+            style="background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">🏢
+            Portale Clienti B2B (Solo Giacenze Positive & Ordini Cantiere)</a>
           <a class="btn-sub" id="devAreaBtn" href="/area-sviluppo.html"
             style="background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">🚀
             Area di Sviluppo & Mappa Territoriale</a>
           <a class="btn-sub" id="warehouseBtn" href="/magazzino.html"
             style="background:#0f766e; color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(15,118,110,0.25);">📦
             Magazzino, Picking & Barcode</a>
-          <button class="btn-sub hidden" id="adminUsersBtn"
+          <a class="btn-sub hidden" id="adminUsersBtn" href="/gestione-utenti.html"
             style="background:#4f46e5; color:#fff; font-weight:700; border:none; box-shadow: 0 2px 8px rgba(79,70,229,0.25);">👥
-            Gestione Accessi & Password</button>
+            Gestione Accessi & Password</a>
           <a class="btn-sub hidden" id="adminOrdersBtn" href="/gestione-ordini.html">📦 Gestione Ordini & Spedizioni</a>
           <a class="btn-sub" id="visitsBtn" href="/giro-visite.html">📅 Piano Marketing & Giro Visite</a>
           <a class="btn-sub" id="adminConfigBtn" href="/configurazione">⚙️ Configurazione</a>
@@ -1623,6 +1628,12 @@
         return;
       }
 
+      // Se l'utente è un cliente B2B, reindirizza direttamente al Portale Riservato B2B
+      if (currentUser.role === 'cliente_b2b' || currentUser.role === 'cliente') {
+        window.location.href = '/b2b/';
+        return;
+      }
+
       // User logged in: update UI
       $('login').classList.add('hidden');
       $('app').classList.remove('hidden');
@@ -1999,8 +2010,9 @@
       if (modalUsers) modalUsers.classList.add('hidden');
     }
 
-    if ($('adminUsersTop')) $('adminUsersTop').onclick = openUsersModal;
-    if ($('adminUsersBtn')) $('adminUsersBtn').onclick = openUsersModal;
+    // Navigazione diretta alla pagina /gestione-utenti.html
+    // Lascia che il browser segua naturalmente il link href="/gestione-utenti.html"
+    // (modalUsers tenuto come supporto legacy)
     if (btnCloseUsersModal) btnCloseUsersModal.onclick = closeUsersModal;
     if (btnCancelUserForm) btnCancelUserForm.onclick = () => {
       userFormContainer.classList.add('hidden');
@@ -2014,6 +2026,9 @@
       $('inputFullName').value = '';
       $('selectRole').value = 'agente';
       $('selectAgentCode').value = '';
+      if ($('selectCustomerCode')) $('selectCustomerCode').value = '';
+      if ($('colCustomerCode')) $('colCustomerCode').style.display = 'none';
+      if ($('colAgentCode')) $('colAgentCode').style.display = 'block';
       $('chkActive').checked = true;
       $('chkCanOrders').checked = true;
       $('chkCanWarehouse').checked = false;
@@ -2027,12 +2042,62 @@
         if (r === 'magazziniere') {
           $('chkCanWarehouse').checked = true;
           $('chkCanOrders').checked = false;
+          if ($('colCustomerCode')) $('colCustomerCode').style.display = 'none';
+          if ($('colAgentCode')) $('colAgentCode').style.display = 'block';
         } else if (r === 'agente') {
           $('chkCanWarehouse').checked = false;
           $('chkCanOrders').checked = true;
+          if ($('colCustomerCode')) $('colCustomerCode').style.display = 'none';
+          if ($('colAgentCode')) $('colAgentCode').style.display = 'block';
         } else if (r === 'admin') {
           $('chkCanWarehouse').checked = true;
           $('chkCanOrders').checked = true;
+          if ($('colCustomerCode')) $('colCustomerCode').style.display = 'none';
+          if ($('colAgentCode')) $('colAgentCode').style.display = 'block';
+        } else if (r === 'cliente_b2b') {
+          $('chkCanWarehouse').checked = false;
+          $('chkCanOrders').checked = true;
+          if ($('colCustomerCode')) $('colCustomerCode').style.display = 'block';
+          if ($('colAgentCode')) $('colAgentCode').style.display = 'none';
+          populateCustomerSelect();
+        }
+      };
+    }
+
+    let _cachedCustomersList = [];
+    async function populateCustomerSelect() {
+      try {
+        if (!_cachedCustomersList.length && window.ClwData) {
+          _cachedCustomersList = await window.ClwData.getCustomers();
+        }
+        if (_cachedCustomersList && _cachedCustomersList.length > 0) {
+          let opts = '<option value="">-- Seleziona Anagrafica Cliente da Plus 2000 --</option>';
+          _cachedCustomersList.forEach(c => {
+            const code = c.code || '';
+            const name = c.name || '';
+            opts += `<option value="${code}">${code} - ${name}</option>`;
+          });
+          if ($('selectCustomerCode')) $('selectCustomerCode').innerHTML = opts;
+        }
+      } catch (e) {
+        console.warn('Errore caricamento lista clienti per B2B:', e);
+      }
+    }
+
+    if ($('selectCustomerCode')) {
+      $('selectCustomerCode').onchange = () => {
+        const code = $('selectCustomerCode').value;
+        if (!code) return;
+        const c = (_cachedCustomersList || []).find(x => String(x.code).trim() === String(code).trim());
+        if (c) {
+          $('inputFullName').value = c.name || '';
+          if (!$('inputUsername').value) {
+            $('inputUsername').value = (c.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          }
+          if (!$('inputPassword').value) {
+            const rand4 = Math.floor(1000 + Math.random() * 9000);
+            $('inputPassword').value = 'clw' + rand4;
+          }
         }
       };
     }
@@ -2071,17 +2136,23 @@
         let html = '';
         users.forEach(u => {
           const roleClass = u.role || 'agente';
-          const roleLabel = u.role === 'admin' ? 'Amministrazione' : (u.role === 'magazziniere' ? 'Magazzino' : (u.role === 'capo_area' ? 'Capo Area' : 'Agente'));
+          const roleLabel = u.role === 'admin' ? 'Amministrazione' : (u.role === 'magazziniere' ? 'Magazzino' : (u.role === 'cliente_b2b' ? 'Cliente B2B' : (u.role === 'capo_area' ? 'Capo Area' : 'Agente')));
           const statusDot = u.active ? '<span style="color:#10b981; font-weight:700;">🟢 Attivo</span>' : '<span style="color:#ef4444; font-weight:700;">🔴 Disattivo</span>';
           const pwdDisplay = u.password_clear || '••••••••';
+          const targetLink = u.role === 'cliente_b2b'
+            ? `<span style="color:#0f766e; font-weight:700;">🏢 Cliente Plus: ${u.agent_code || '-'}</span>`
+            : (u.agent_code || '-');
           html += `
             <tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:10px 8px;">${statusDot}</td>
               <td style="padding:10px 8px; font-weight:700; color:var(--navy); font-family:monospace;">${u.username}</td>
               <td style="padding:10px 8px;">${u.name || '-'}</td>
               <td style="padding:10px 8px;"><span class="role-badge ${roleClass}">${roleLabel}</span></td>
-              <td style="padding:10px 8px; font-family:monospace; color:#475569;">${u.agent_code || '-'}</td>
-              <td style="padding:10px 8px; font-family:monospace; background:#f8fafc; font-size:0.85rem;" title="Password">${pwdDisplay}</td>
+              <td style="padding:10px 8px; font-family:monospace;">${targetLink}</td>
+              <td style="padding:10px 8px; font-family:monospace; background:#f8fafc; font-size:0.88rem;">
+                <span style="font-weight:700; color:#0f172a;">${pwdDisplay}</span>
+                ${u.password_clear ? `<button type="button" class="btn-top" onclick="window.copyUserCredentials('${u.username}', '${u.password_clear}')" style="padding:2px 6px; font-size:0.75rem; margin-left:6px; background:#e0f2fe; color:#0369a1; border-color:#bae6fd;" title="Copia Login e Password per il cliente">📋 Copia</button>` : ''}
+              </td>
               <td style="padding:10px 8px; text-align:right; white-space:nowrap;">
                 <button class="btn-top" onclick="editUser('${u.id}')" style="padding:4px 8px; font-size:0.75rem; background:#f1f5f9; color:#334155; margin-right:4px;">✏️ Modifica</button>
                 <button class="btn-top" onclick="deleteUserRow('${u.id}', '${u.username}')" style="padding:4px 8px; font-size:0.75rem; background:#fee2e2; color:#b91c1c; border-color:#fca5a5;">🗑️</button>
@@ -2096,6 +2167,16 @@
       }
     }
 
+    window.copyUserCredentials = function(username, pwd) {
+      const text = `Credenziali Portale B2B Climawell:\nLogin: ${username}\nPassword: ${pwd}\nLink: https://clw-agenti.netlify.app/b2b/`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        showSyncToast('Credenziali copiate negli appunti!');
+      } else {
+        prompt('Copia le credenziali da inviare al cliente:', text);
+      }
+    };
+
     window.editUser = function (id) {
       const u = (window._currentLoadedUsers || []).find(x => x.id === id);
       if (!u) return;
@@ -2105,6 +2186,16 @@
       $('inputFullName').value = u.name;
       $('selectRole').value = u.role || 'agente';
       $('selectAgentCode').value = u.agent_code || '';
+      if (u.role === 'cliente_b2b') {
+        if ($('colCustomerCode')) $('colCustomerCode').style.display = 'block';
+        if ($('colAgentCode')) $('colAgentCode').style.display = 'none';
+        populateCustomerSelect().then(() => {
+          if ($('selectCustomerCode')) $('selectCustomerCode').value = u.agent_code || '';
+        });
+      } else {
+        if ($('colCustomerCode')) $('colCustomerCode').style.display = 'none';
+        if ($('colAgentCode')) $('colAgentCode').style.display = 'block';
+      }
       $('chkActive').checked = Boolean(u.active);
       $('chkCanOrders').checked = Boolean(u.can_orders);
       $('chkCanWarehouse').checked = Boolean(u.can_warehouse);
@@ -2130,7 +2221,9 @@
         const password = $('inputPassword').value.trim();
         const name = $('inputFullName').value.trim();
         const role = $('selectRole').value;
-        const agentCode = $('selectAgentCode').value || null;
+        const agentCode = (role === 'cliente_b2b')
+          ? ($('selectCustomerCode') && $('selectCustomerCode').value ? $('selectCustomerCode').value : $('selectAgentCode').value || null)
+          : ($('selectAgentCode').value || null);
         const id = $('editUserId').value || null;
 
         if (!username || !name) {
@@ -2303,6 +2396,7 @@
                 style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; font-weight:600; background:#fff;">
                 <option value="agente">Agente Commerciale (Ordini / Offerte)</option>
                 <option value="magazziniere">Operatore Magazzino (Picking & Barcode)</option>
+                <option value="cliente_b2b">Cliente B2B (Solo Giacenze Positive & Ordini)</option>
                 <option value="admin">Amministratore (Controllo Totale)</option>
                 <option value="capo_area">Capo Area Commerciale</option>
               </select>
@@ -2313,6 +2407,13 @@
               <select id="selectAgentCode"
                 style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem; background:#fff;">
                 <option value="">Nessun agente collegato (Generico)</option>
+              </select>
+            </div>
+            <div id="colCustomerCode" style="display:none;">
+              <label style="display:block; font-size:0.8rem; font-weight:700; margin-bottom:4px; color:#0f766e;">🏢 Anagrafica Cliente Plus 2000 *</label>
+              <select id="selectCustomerCode"
+                style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid #0f766e; border-radius:8px; font-size:0.9rem; background:#fff;">
+                <option value="">-- Seleziona Anagrafica Cliente da Plus 2000 --</option>
               </select>
             </div>
           </div>
