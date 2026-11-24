@@ -1158,17 +1158,28 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                 syncer.delete("document_lines", "document_number", d['number'])
             return
 
-        # Recupera ordini già presenti su Supabase per evitare di sovrascrivere lo stato di picking
+        # Recupera ordini già presenti su Supabase per evitare di sovrascrivere lo stato di picking e deduplicare ordini web
         existing_sup_docs = syncer.get("documents", {
             "document_type": "in.(OCL,ORD)",
             "select": "id,number,plus_doc_id,status,picked_by"
         })
         existing_map = {}
         for d in (existing_sup_docs or []):
-            if d.get("plus_doc_id"):
-                existing_map[str(d["plus_doc_id"]).strip()] = d
-            if d.get("number"):
-                existing_map[str(d["number"]).strip()] = d
+            num = str(d.get("number") or "").strip()
+            p_id = str(d.get("plus_doc_id") or "").strip()
+            if num:
+                existing_map[num] = d
+            if p_id:
+                existing_map[p_id] = d
+                # Estrae ID numerico Plus (es. "OCL 1342/2026 (ID:536939)" o "PLUS-ID:536939")
+                m = re.search(r'(?:ID:|PLUS-ID:)(\d+)', p_id)
+                if m:
+                    existing_map[f"ID:{m.group(1)}"] = d
+                    existing_map[f"PLUS-ID:{m.group(1)}"] = d
+                # Estrae identificativo Plus (es. "OCL 1342/2026")
+                m_txt = re.search(r'([A-Za-z0-9_-]+\s+\d+/\d+)', p_id)
+                if m_txt:
+                    existing_map[m_txt.group(1)] = d
 
         docs_batch = []
         lines_batch = []
@@ -1182,7 +1193,32 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
             anno = ord_info["Anno"]
             tp_doc = ord_info["TpDoc"] or "OCL"
             doc_id_key = f"PLUS-ID:{doc_id}"
-            doc_number = f"ORD-{y_doc}/{anno}"
+            default_doc_number = f"ORD-{y_doc}/{anno}"
+            rif_ord = str(ord_info.get("RiferimentoOrdine") or "").strip()
+
+            # 1. Ricerca ordine corrispondente già presente su Supabase
+            existing = (
+                (existing_map.get(rif_ord) if rif_ord else None)
+                or existing_map.get(doc_id_key)
+                or existing_map.get(f"ID:{doc_id}")
+                or existing_map.get(f"{tp_doc} {y_doc}/{anno}")
+                or existing_map.get(default_doc_number)
+            )
+
+            # Se l'ordine proviene dal web/B2B (es. OCL-B2B-2026-1318), conserviamo il numero web per evitare doppioni!
+            if existing and existing.get("number"):
+                doc_number = existing["number"]
+                # Se era stato erroneamente inserito in precedenza un record separato ORD-{y_doc}/{anno}:
+                if doc_number != default_doc_number and default_doc_number in existing_map:
+                    print(f"🧹 [Deduplica] Rilevato doppione {default_doc_number} per ordine web {doc_number}: rimozione da Supabase...")
+                    try:
+                        syncer.delete("document_lines", "document_number", default_doc_number)
+                        syncer.delete("documents", "number", default_doc_number)
+                        existing_map.pop(default_doc_number, None)
+                    except Exception as e_del:
+                        print(f"  [Avviso rimozione doppione]: {e_del}")
+            else:
+                doc_number = default_doc_number
 
             # Estrai righe dell'ordine con quantità da prelevare (filtrando esplicitamente r.Evaso = 'N')
             sql_lines = """
@@ -1258,7 +1294,7 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                 "total": float(ord_info["TotaleDocumento"] or 0),
                 "destination_address": ord_info["Citta"] or "",
                 "notes": ord_info["RiferimentoOrdine"] or "",
-                "plus_doc_id": doc_id_key
+                "plus_doc_id": f"{tp_doc} {y_doc}/{anno} (ID:{doc_id})"
             }
             docs_batch.append(doc_payload)
 

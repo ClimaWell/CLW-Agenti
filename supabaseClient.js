@@ -501,6 +501,35 @@
     },
 
     /**
+     * Elimina una pratica (ordine o offerta) e le relative righe da Supabase
+     */
+    async deleteDocument(documentNumber) {
+      if (!documentNumber) return false;
+      const docNum = String(documentNumber).trim();
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non inizializzato');
+
+      // 1. Elimina le righe collegate in document_lines
+      try {
+        await client.from('document_lines').delete().eq('document_number', docNum);
+      } catch (e) {
+        console.warn('[Supabase] Errore delete document_lines:', e);
+      }
+
+      // 2. Elimina la testata in documents
+      const { error } = await client.from('documents').delete().eq('number', docNum);
+      if (error) throw error;
+
+      // 3. Svuota la cache locale delle pratiche
+      try {
+        localStorage.removeItem('clw_cache_documents');
+        localStorage.removeItem('clw_cache_ts_documents');
+      } catch (e) {}
+
+      return true;
+    },
+
+    /**
      * Recupera le offerte e gli ordini da Supabase (con cache e limite record per risparmio banda)
      */
     async getDocuments(options = {}) {
@@ -1068,7 +1097,9 @@
         { username: 'amministratore', password: 'Clima1997', name: 'Amministrazione Climawell', role: 'admin', agentCode: 'ADM01', canWarehouse: true, canOrders: true },
         { username: 'admin', password: 'clw2026!', name: 'Admin Climawell', role: 'admin', agentCode: 'ADM01', canWarehouse: true, canOrders: true },
         { username: 'magazzino', password: 'clw2026!', name: 'Operatore Magazzino', role: 'magazziniere', agentCode: 'MAG01', canWarehouse: true, canOrders: false },
-        { username: 'f.pontrelli', password: 'clw2026!', name: 'Francesco Pontrelli', role: 'agent', agentCode: '217', canWarehouse: false, canOrders: true }
+        { username: 'f.pontrelli', password: 'clw2026!', name: 'Francesco Pontrelli', role: 'agent', agentCode: '217', canWarehouse: false, canOrders: true },
+        { username: 'cliente.b2b', password: 'clw2026!', name: 'S.T.A.G. S.R.L. (Cliente B2B)', role: 'cliente_b2b', agentCode: '00032', canWarehouse: false, canOrders: true },
+        { username: 'cliente.test', password: 'clw2026!', name: 'Cliente Partner Test B2B', role: 'cliente_b2b', agentCode: 'CLI01', canWarehouse: false, canOrders: true }
       ];
       const match = fallbackUsers.find(x => x.username.toLowerCase() === u && x.password === p);
       if (match) {
@@ -1105,6 +1136,10 @@
         return [];
       }
       return data || [];
+    },
+
+    async getUsers() {
+      return this.listUsers();
     },
 
     async saveUser(userData) {

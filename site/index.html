@@ -1281,6 +1281,9 @@
               <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
                 ${plusRef ? `<span class="status-pill" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-weight:800; font-size:0.8rem; letter-spacing:0.02em;">📋 Plus: ${plusRef}</span>` : ''}
                 <span class="status-pill ${stClass}">${stLabel}</span>
+                ${currentUser?.role === 'admin' ? `
+                  <button type="button" class="btn-sub btn-del-practice" style="padding:2px 7px; font-size:.74rem; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; font-weight:700; border-radius:6px; cursor:pointer;" onclick="event.stopPropagation(); deletePractice('${escapeHtml(docNum)}')" title="Elimina ordine/pratica dal portale (Admin)">🗑️</button>
+                ` : ''}
               </div>
             </div>
 
@@ -1467,8 +1470,63 @@
       } else if (openBtn) {
         openBtn.style.display = 'none';
       }
+
+      let delBtn = $('modalDeleteBtn');
+      if (currentUser?.role === 'admin') {
+        if (!delBtn) {
+          delBtn = document.createElement('button');
+          delBtn.id = 'modalDeleteBtn';
+          delBtn.className = 'btn-sub';
+          delBtn.style.cssText = 'background:#fef2f2; border:1px solid #fecaca; color:#dc2626; font-weight:700; margin-right:auto;';
+          delBtn.textContent = '🗑️ Elimina Pratica';
+          $('modalActions').insertBefore(delBtn, $('modalActions').firstChild);
+        }
+        delBtn.onclick = () => {
+          $('detailModal').close();
+          deletePractice(item.number || item.id);
+        };
+        delBtn.style.display = '';
+      } else if (delBtn) {
+        delBtn.style.display = 'none';
+      }
+
       $('detailModal').showModal();
     }
+
+    window.deletePractice = async function(docNum) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert('Azione riservata all\'amministratore.');
+        return;
+      }
+      const safeNum = String(docNum).trim();
+      if (!confirm(`Sei sicuro di voler eliminare dal registro pratiche il documento:\n\n${safeNum}\n\nQuesta azione cancellerà la pratica e tutte le relative righe dal portale.`)) {
+        return;
+      }
+
+      try {
+        if (window.ClwData && typeof window.ClwData.deleteDocument === 'function') {
+          await window.ClwData.deleteDocument(safeNum);
+        } else {
+          const sbUrl = "https://fadgdncfhfpwkcbxcntc.supabase.co";
+          const sbKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhZGdkbmNmaGZwd2tjYnhjbnRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NzYzOTIsImV4cCI6MjEwNzQ1MjM5Mn0.ucGTqDigQVa6ZkBTH3l8Rvo7JHF7RVxvEv-3NGcMlfo";
+          await fetch(`${sbUrl}/rest/v1/document_lines?document_number=eq.${encodeURIComponent(safeNum)}`, {
+            method: 'DELETE',
+            headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
+          });
+          await fetch(`${sbUrl}/rest/v1/documents?number=eq.${encodeURIComponent(safeNum)}`, {
+            method: 'DELETE',
+            headers: { "apikey": sbKey, "Authorization": `Bearer ${sbKey}` }
+          });
+        }
+
+        allPractices = allPractices.filter(p => p.number !== safeNum && p.id !== safeNum);
+        renderRows();
+        alert(`Documento ${safeNum} rimosso con successo dal registro pratiche.`);
+      } catch (err) {
+        console.error('Errore eliminazione documento:', err);
+        alert(`Impossibile eliminare il documento: ${err.message}`);
+      }
+    };
 
     async function openOfferInEditor(offerNumber, asRevision = true) {
       const offer = allPractices.find(p => p.number === offerNumber || p.id === offerNumber);

@@ -501,6 +501,35 @@
     },
 
     /**
+     * Elimina una pratica (ordine o offerta) e le relative righe da Supabase
+     */
+    async deleteDocument(documentNumber) {
+      if (!documentNumber) return false;
+      const docNum = String(documentNumber).trim();
+      const client = initClient();
+      if (!client) throw new Error('Client Supabase non inizializzato');
+
+      // 1. Elimina le righe collegate in document_lines
+      try {
+        await client.from('document_lines').delete().eq('document_number', docNum);
+      } catch (e) {
+        console.warn('[Supabase] Errore delete document_lines:', e);
+      }
+
+      // 2. Elimina la testata in documents
+      const { error } = await client.from('documents').delete().eq('number', docNum);
+      if (error) throw error;
+
+      // 3. Svuota la cache locale delle pratiche
+      try {
+        localStorage.removeItem('clw_cache_documents');
+        localStorage.removeItem('clw_cache_ts_documents');
+      } catch (e) {}
+
+      return true;
+    },
+
+    /**
      * Recupera le offerte e gli ordini da Supabase (con cache e limite record per risparmio banda)
      */
     async getDocuments(options = {}) {
