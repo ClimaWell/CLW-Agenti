@@ -572,7 +572,8 @@
         </div>
         <div id="colCustomerSelect" style="display: block;">
           <label class="field-label" style="color:#0f766e;">🏢 Anagrafica Cliente Plus 2000 *</label>
-          <select id="selectCustomerCode" class="field-select" style="border-color:#0f766e;">
+          <input type="text" id="inputCustomerCodeManual" class="field-input" placeholder="Codice Conto Plus (es. 15221) o seleziona sotto" style="border-color:#0f766e; font-weight:700; margin-bottom:6px;">
+          <select id="selectCustomerCode" class="field-select" style="border-color:#0f766e;" onchange="if(this.value) document.getElementById('inputCustomerCodeManual').value = this.value;">
             <option value="">Caricamento anagrafiche Plus 2000 in corso...</option>
           </select>
         </div>
@@ -667,7 +668,7 @@
     async function loadCustomersList() {
       try {
         if (window.ClwData && typeof window.ClwData.getCustomers === 'function') {
-          customersList = await window.ClwData.getCustomers();
+          customersList = await window.ClwData.getCustomers({ forceRefresh: true });
           populateCustomerDropdown();
         }
       } catch (err) {
@@ -693,23 +694,29 @@
 
     async function fetchUsers() {
       try {
-        if (window.ClwData && typeof window.ClwData.getUsers === 'function') {
-          allUsers = await window.ClwData.getUsers();
-        } else {
-          // Fallback locale
-          allUsers = [
-            { id: '1', username: 'admin', name: 'Admin Climawell', role: 'admin', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: true },
-            { id: '2', username: 'cliente.b2b', name: 'S.T.A.G. S.R.L. (Cliente B2B)', role: 'cliente_b2b', agent_code: '00032', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false },
-            { id: '3', username: 'magazzino', name: 'Operatore Magazzino', role: 'magazziniere', agent_code: 'MAG01', active: true, password_clear: 'clw2026!', can_orders: false, can_warehouse: true },
-            { id: '4', username: 'f.pontrelli', name: 'Francesco Pontrelli', role: 'agente', agent_code: '217', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false }
-          ];
+        const fn = window.ClwData ? (window.ClwData.listUsers || window.ClwData.getUsers) : null;
+        if (fn) {
+          const res = await fn.call(window.ClwData);
+          if (Array.isArray(res) && res.length > 0) {
+            allUsers = res;
+          }
         }
-        updateCounts();
-        applyUserFilters();
       } catch (err) {
         console.error('Errore caricamento utenti:', err);
-        showToast('Errore durante la lettura degli utenti: ' + err.message, true);
       }
+
+      // Se vuoto o primo avvio, mantieni gli utenti base di sicurezza
+      if (!allUsers || allUsers.length === 0) {
+        allUsers = [
+          { id: '1', username: 'admin', name: 'Admin Climawell', role: 'admin', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: true },
+          { id: '2', username: 'cliente.b2b', name: 'S.T.A.G. S.R.L. (Cliente B2B)', role: 'cliente_b2b', agent_code: '00032', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false },
+          { id: '3', username: 'magazzino', name: 'Operatore Magazzino', role: 'magazziniere', agent_code: 'MAG01', active: true, password_clear: 'clw2026!', can_orders: false, can_warehouse: true },
+          { id: '4', username: 'f.pontrelli', name: 'Francesco Pontrelli', role: 'agente', agent_code: '217', active: true, password_clear: 'clw2026!', can_orders: true, can_warehouse: false }
+        ];
+      }
+
+      updateCounts();
+      applyUserFilters();
     }
 
     function updateCounts() {
@@ -914,7 +921,9 @@
 
       let agentCode = null;
       if (role === 'cliente_b2b') {
-        agentCode = document.getElementById('selectCustomerCode').value || null;
+        const manualCode = document.getElementById('inputCustomerCodeManual')?.value.trim();
+        const selCode = document.getElementById('selectCustomerCode')?.value;
+        agentCode = manualCode || selCode || (username.match(/^\d+$/) ? username : null);
       } else {
         agentCode = document.getElementById('selectAgentCode').value || null;
       }
@@ -946,8 +955,30 @@
             can_warehouse
           });
         }
+
+        // Aggiunta/aggiornamento ottimistico locale per renderlo immediatamente visibile nella tabella
+        const savedItem = {
+          id: id || ('usr_' + Date.now()),
+          username,
+          name,
+          role,
+          agent_code: agentCode,
+          active,
+          can_orders,
+          can_warehouse,
+          password_clear: password
+        };
+        const existIdx = allUsers.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+        if (existIdx >= 0) {
+          allUsers[existIdx] = { ...allUsers[existIdx], ...savedItem };
+        } else {
+          allUsers.unshift(savedItem);
+        }
+
         showToast(`Utente '${username}' salvato con successo!`);
         toggleUserForm(false);
+        updateCounts();
+        applyUserFilters();
         await fetchUsers();
       } catch (err) {
         console.error('Errore salvataggio utente:', err);

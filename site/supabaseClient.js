@@ -1109,6 +1109,10 @@
       return data || [];
     },
 
+    async getUsers() {
+      return this.listUsers();
+    },
+
     async saveUser(userData) {
       const client = initClient();
       if (!client) throw new Error('Supabase client non inizializzato');
