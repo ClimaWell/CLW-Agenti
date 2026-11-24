@@ -234,10 +234,12 @@ class Plus2000Connector:
                 SET NOCOUNT ON;
                 INSERT INTO DocTes (
                     Anno, TpDoc, JSeqDoc, YDoc, DDoc,
+                    JCauMaga, DesCauMaga, JDepPri, JDepSec,
                     TpConto, JConto, TpContoDest, JContoDest,
                     JValuta, ACambio, RifOrd, DRifOrd
                 ) VALUES (
                     {anno}, '{tp_doc}', '{j_seq_doc}', {y_doc}, {d_doc_int},
+                    'ORCL', 'ORDINE CLIENTE', '000', '000',
                     'C', {j_conto}, 'C', {j_conto},
                     'EUR', 1.0, ?, {d_doc_int}
                 );
@@ -247,8 +249,9 @@ class Plus2000Connector:
                 doc_id_plus = int(cursor.fetchone()[0])
                 print(f"  -> Inserita Testata DocTes con DocId={doc_id_plus}, Numero={y_doc}/{anno}")
 
-                # C. Applica Default di Testata
+                # C. Applica Default di Testata e Riafferma Causale ORCL & Deposito 000
                 cursor.execute(f"EXEC sp_DocTes_SetDefault {doc_id_plus}, 0")
+                cursor.execute(f"UPDATE DocTes SET JCauMaga = 'ORCL', DesCauMaga = 'ORDINE CLIENTE', JDepPri = '000', JDepSec = '000' WHERE DocId = {doc_id_plus}")
 
                 # D. Inserimento Righe DocRig
                 for r_num, (line_row, l_col_map) in enumerate(lines, start=1):
@@ -288,11 +291,13 @@ class Plus2000Connector:
                     INSERT INTO DocRig (
                         DocId, Riga, TpDoc, JSeqDoc, DDoc,
                         CaId, DesArt, Um, UmQt, Pezzi, Qt,
-                        PzLordo, PzNetto, ScontoExtra, JIva, Note
+                        PzLordo, PzNetto, ScontoExtra, JIva, Note,
+                        JCauMaga, JDep
                     ) VALUES (
                         {doc_id_plus}, {r_num}, '{tp_doc}', '{j_seq_doc}', {d_doc_int},
                         {ca_id}, ?, '{um}', '{um}', {qt}, {qt},
-                        {pz_lordo}, {pz_netto}, {sc_extra}, '{cod_iva}', ?
+                        {pz_lordo}, {pz_netto}, {sc_extra}, '{cod_iva}', ?,
+                        'ORCL', '000'
                     );
                     SELECT SCOPE_IDENTITY();
                     """
@@ -300,6 +305,7 @@ class Plus2000Connector:
                     riga_id_plus = int(cursor.fetchone()[0])
                     # Imposta default riga (sconti, formule, contropartite)
                     cursor.execute(f"EXEC sp_DocRig_SetDefault {riga_id_plus}, 0, 0")
+                    cursor.execute(f"UPDATE DocRig SET JCauMaga = 'ORCL', JDep = '000' WHERE RigaId = {riga_id_plus}")
                     if sc_extra > 0:
                         cursor.execute(f"UPDATE DocRig SET ScontoExtra = {sc_extra}, PzNetto = {pz_netto} WHERE RigaId = {riga_id_plus}")
 

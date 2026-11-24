@@ -810,7 +810,7 @@ def sync_documents_from_supabase_to_plus(cursor, syncer, conn):
                     des_cau_maga = "CARICO"
             elif raw_type in ["ORDER", "OCL", "ORD"]:
                 tp_doc = "OCL"
-                cau_maga = "OCL"
+                cau_maga = "ORCL"
                 des_cau_maga = "ORDINE CLIENTE"
                 j_seq_doc = "00"
             else:
@@ -912,8 +912,8 @@ def sync_documents_from_supabase_to_plus(cursor, syncer, conn):
             doc_tipo = "" if is_mag else "CLI"
             doc_tp_conto = "N" if is_mag else "C"
             doc_j_conto = 0 if is_mag else j_conto
-            doc_j_dep_pri = "000" if is_mag else ""
-            doc_j_dep_sec = "000" if is_mag else ""
+            doc_j_dep_pri = "000" if (is_mag or tp_doc == "OCL") else ""
+            doc_j_dep_sec = "000" if (is_mag or tp_doc == "OCL") else ""
 
             # Verifica preventiva anti-duplicazione documento su Plus 2000
             existing = None
@@ -1034,7 +1034,8 @@ def sync_documents_from_supabase_to_plus(cursor, syncer, conn):
                     disc_mult = (1 - sc1/100) * (1 - sc2/100) * (1 - sc3/100) * (1 - sc4/100) * (1 - sc_extra/100)
                     pz_net = float(line.get("net_price") or (pz_lordo * disc_mult))
                     tot_riga = float(line.get("total") or (qty * pz_net))
-                    riga_cau = cau_maga  # 'OFC' o 'OCL'
+                    riga_cau = cau_maga  # 'OFC' o 'ORCL'
+                    riga_dep = "000" if (is_mag or tp_doc == "OCL") else ""
                     riga_um = line.get("um") or "PZ"
                     riga_listino = "VEN1"
                     iva = str(line.get("vat") or "22")[:4]
@@ -1047,14 +1048,14 @@ def sync_documents_from_supabase_to_plus(cursor, syncer, conn):
                     JListino, PzLordo, PzNetto,
                     Sconto1, Sconto2, Sconto3, Sconto4, ScontoExtra, Ricarico,
                     ATotale, ATotaleIC, JIva, Note,
-                    TpConto, JConto, JContoDest, JCauMaga
+                    TpConto, JConto, JContoDest, JCauMaga, JDep
                 ) VALUES (
                     {doc_id_plus}, {r_num}, '{tp_doc}', '{j_seq_doc}', {d_doc_int},
                     {ca_id}, ?, '{riga_um}', '{riga_um}', {qty}, {qty},
                     '{riga_listino}', {pz_lordo}, {pz_net},
                     {sc1}, {sc2}, {sc3}, {sc4}, {sc_extra}, 0.0,
                     {tot_riga}, {tot_riga}, '{iva}', ?,
-                    '{doc_tp_conto}', {doc_j_conto}, {doc_j_conto}, '{riga_cau}'
+                    '{doc_tp_conto}', {doc_j_conto}, {doc_j_conto}, '{riga_cau}', '{riga_dep}'
                 );
                 SELECT SCOPE_IDENTITY();
                 """
@@ -1066,14 +1067,14 @@ def sync_documents_from_supabase_to_plus(cursor, syncer, conn):
                 except Exception:
                     pass
 
-                # Riafferma causale di riga, listino ACQ o VEN1, prezzi e sconti (incluso ScontoExtra)
+                # Riafferma causale di riga, deposito '000', listino ACQ o VEN1, prezzi e sconti (incluso ScontoExtra)
                 cursor.execute("""
                     UPDATE DocRig
-                    SET JCauMaga = ?, JListino = ?, PzLordo = ?, PzNetto = ?,
+                    SET JCauMaga = ?, JDep = ?, JListino = ?, PzLordo = ?, PzNetto = ?,
                         Sconto1 = ?, Sconto2 = ?, Sconto3 = ?, Sconto4 = ?, ScontoExtra = ?,
                         ATotale = ?, ATotaleIC = ?, JConto = ?, JContoDest = ?
                     WHERE RigaId = ?
-                """, (riga_cau, riga_listino, pz_lordo, pz_net, sc1, sc2, sc3, sc4, sc_extra, tot_riga, tot_riga, doc_j_conto, doc_j_conto, riga_id_plus))
+                """, (riga_cau, riga_dep, riga_listino, pz_lordo, pz_net, sc1, sc2, sc3, sc4, sc_extra, tot_riga, tot_riga, doc_j_conto, doc_j_conto, riga_id_plus))
 
             # Ricalcola totali documento
             try:

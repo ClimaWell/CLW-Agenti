@@ -777,10 +777,12 @@ def db_crea_ordine_giro_cliente(payload):
         SET NOCOUNT ON;
         INSERT INTO DocTes (
             Anno, TpDoc, JSeqDoc, YDoc, DDoc,
+            JCauMaga, DesCauMaga, JDepPri, JDepSec,
             TpConto, JConto, TpContoDest, JContoDest,
             JValuta, ACambio, RifOrd, DRifOrd, Note
         ) VALUES (
             ?, ?, ?, ?, ?,
+            'ORCL', 'ORDINE CLIENTE', '000', '000',
             'C', ?, 'C', ?,
             'EUR', 1.0, ?, ?, ?
         );
@@ -791,6 +793,13 @@ def db_crea_ordine_giro_cliente(payload):
 
         # Applica Stored Procedure default testata (pagamento, banche, agente)
         cursor.execute(f"EXEC sp_DocTes_SetDefault {doc_id_plus}, 0")
+
+        # Riafferma Causale ORCL e Deposito 000 su DocTes
+        cursor.execute("""
+            UPDATE DocTes
+            SET JCauMaga = 'ORCL', DesCauMaga = 'ORDINE CLIENTE', JDepPri = '000', JDepSec = '000'
+            WHERE DocId = ?
+        """, (doc_id_plus,))
 
         # Inserimento righe
         for r_num, item in enumerate(righe, start=1):
@@ -811,11 +820,13 @@ def db_crea_ordine_giro_cliente(payload):
             INSERT INTO DocRig (
                 DocId, Riga, TpDoc, JSeqDoc, DDoc,
                 CaId, DesArt, Um, UmQt, Pezzi, Qt,
-                PzLordo, PzNetto, ScontoExtra, JIva, Note
+                PzLordo, PzNetto, ScontoExtra, JIva, Note,
+                JCauMaga, JDep
             ) VALUES (
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
-                0, 0, 0, '22', ?
+                0, 0, 0, '22', ?,
+                'ORCL', '000'
             );
             SELECT SCOPE_IDENTITY();
             """
@@ -824,6 +835,13 @@ def db_crea_ordine_giro_cliente(payload):
 
             # Invocazione Stored Procedure standard Plus per impostazione automatica sconti e condizioni cliente
             cursor.execute(f"EXEC sp_DocRig_SetDefault {riga_id_plus}, 0, 0")
+
+            # Riafferma Causale ORCL e Deposito 000 su DocRig
+            cursor.execute("""
+                UPDATE DocRig
+                SET JCauMaga = 'ORCL', JDep = '000'
+                WHERE RigaId = ?
+            """, (riga_id_plus,))
 
         # Ricalcolo totali e IVA dell'ordine
         cursor.execute(f"EXEC sp_Doc_Aggiorna_Totali {doc_id_plus}")
