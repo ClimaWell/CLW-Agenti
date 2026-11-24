@@ -74,24 +74,47 @@ def get_sender():
     })
 
 
+def get_customer_from_supabase(customer_code, customer_name):
+    try:
+        if not customer_code and not customer_name:
+            return None
+        url = f"{SUPABASE_URL}/rest/v1/customers"
+        params = {"select": "code,name,address,city,province,postal_code,phone,email"}
+        if customer_code:
+            params["code"] = f"eq.{customer_code}"
+        elif customer_name:
+            params["name"] = f"eq.{customer_name}"
+        resp = requests.get(url, headers=get_supabase_headers(), params=params, timeout=10)
+        if resp.ok:
+            data = resp.json()
+            if data and len(data) > 0:
+                return data[0]
+    except Exception as e:
+        print(f"⚠️ Avviso ricerca cliente per spedizione: {e}")
+    return None
+
+
 def parse_order_recipient(order):
     """
     Estrae dati anagrafici, cantiere, referente e telefono per la spedizione
     """
-    dest = order.get("destination_address") or ""
-    notes = order.get("notes") or ""
+    dest = str(order.get("destination_address") or "").strip()
+    notes = str(order.get("notes") or "").strip()
     cust_name = order.get("customer_name") or "Cliente"
+    cust_code = order.get("customer_code") or ""
+
+    cust = get_customer_from_supabase(cust_code, cust_name) or {}
 
     recipient = {
         "name": cust_name,
         "company": cust_name,
-        "street1": dest,
-        "zip_code": "50100",
-        "city": "Firenze",
-        "province": "FI",
+        "street1": (cust.get("address") or "").strip(),
+        "zip_code": (cust.get("postal_code") or "").strip(),
+        "city": (cust.get("city") or "").strip(),
+        "province": (cust.get("province") or "").strip().upper(),
         "country": "IT",
-        "phone": "0554289074",
-        "email": "logistica@climawell.it",
+        "phone": (cust.get("phone") or "").strip(),
+        "email": (cust.get("email") or "").strip(),
         "is_cantiere": False,
         "cantiere_nome": "",
         "delivery_notes": ""
@@ -125,8 +148,10 @@ def parse_order_recipient(order):
             recipient["city"] = zip_city.group(2).strip()
             if zip_city.group(3):
                 recipient["province"] = zip_city.group(3).upper()
-            recipient["street1"] = addr_part.split(recipient["zip_code"])[0].rstrip(", ").strip()
-        else:
+            p_street = addr_part.split(recipient["zip_code"])[0].rstrip(", ").strip()
+            if p_street:
+                recipient["street1"] = p_street
+        elif addr_part:
             recipient["street1"] = addr_part
     else:
         # Indirizzo sede standard
@@ -136,9 +161,20 @@ def parse_order_recipient(order):
             recipient["city"] = zip_city.group(2).strip()
             if zip_city.group(3):
                 recipient["province"] = zip_city.group(3).upper()
-            recipient["street1"] = dest.split(recipient["zip_code"])[0].rstrip(", ").strip()
-        else:
-            recipient["street1"] = dest or "Via Sede Cliente"
+            p_street = dest.split(recipient["zip_code"])[0].rstrip(", ").strip()
+            if p_street:
+                recipient["street1"] = p_street
+        elif dest:
+            # Se è presente solo la località (es. "CURNO"), impostala come città senza cancellare la via
+            recipient["city"] = dest.replace("(", "").replace(")", "").strip()
+            if not recipient["street1"]:
+                recipient["street1"] = recipient["city"]
+
+    # Se ancora senza telefono, cerca nelle note
+    if not recipient["phone"]:
+        tel_m = re.search(r"Telefono[^:]*:\s*([^\n]+)", notes, re.IGNORECASE)
+        if tel_m:
+            recipient["phone"] = re.sub(r"[^0-9+]", "", tel_m.group(1))
 
     return recipient
 

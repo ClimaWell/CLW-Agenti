@@ -55,30 +55,46 @@
     },
 
     /**
-     * Estrae i dati di spedizione strutturati da un ordine B2B
-     * (analizza destination_address e notes per estrarre cantiere, referente e telefono)
+     * Estrae i dati di spedizione strutturati da un ordine B2B o da anagrafica cliente
+     * (analizza destination_address, notes e anagrafica customers per estrarre cantiere, referente e telefono)
      */
-    parseOrderShippingInfo(order) {
-      const dest = order.destination_address || '';
-      const notes = order.notes || '';
+    parseOrderShippingInfo(order, explicitCustomer = null) {
+      const dest = String(order.destination_address || '').trim();
+      const notes = String(order.notes || '').trim();
+
+      // 1. Cerca il cliente in cache locale o da parametro esplicito
+      let cust = explicitCustomer || null;
+      if (!cust) {
+        try {
+          const cachedRaw = localStorage.getItem('clw_cache_customers');
+          if (cachedRaw) {
+            const list = JSON.parse(cachedRaw);
+            if (Array.isArray(list)) {
+              const cCode = String(order.customer_code || '').trim();
+              const cName = String(order.customer_name || '').trim().toLowerCase();
+              cust = list.find(c => (cCode && String(c.code).trim() === cCode) || (cName && String(c.name).trim().toLowerCase() === cName));
+            }
+          }
+        } catch (e) {}
+      }
 
       let recipient = {
-        name: order.customer_name || 'Cliente',
-        company: order.customer_name || '',
-        street1: '',
-        zip_code: '',
-        city: '',
-        province: 'FI',
+        name: order.customer_name || (cust?.name) || 'Cliente',
+        company: order.customer_name || (cust?.name) || '',
+        street1: (cust?.address || '').trim(),
+        zip_code: (cust?.postal_code || cust?.cap || '').trim(),
+        city: (cust?.city || '').trim(),
+        province: (cust?.province || '').trim().toUpperCase(),
         country: 'IT',
-        phone: '0554289074',
-        email: '',
+        phone: (cust?.phone || cust?.mobile || '').trim(),
+        email: (cust?.email || '').trim(),
         isCantiere: false,
         cantiereName: '',
         referente: '',
         deliveryNotes: ''
       };
 
-      // Controlla se è presente tag Cantiere
+      // 2. Controlla se è presente tag Cantiere
       if (dest.includes('[CANTIERE:') || notes.includes('DESTINAZIONE DIVERSA CANTIERE')) {
         recipient.isCantiere = true;
 
@@ -92,7 +108,10 @@
 
         // Estrai telefono
         const telMatch = notes.match(/Telefono[^:]*:\s*([^\n]+)/i);
-        if (telMatch && telMatch[1]) recipient.phone = telMatch[1].replace(/[^0-9+]/g, '');
+        if (telMatch && telMatch[1]) {
+          const cleanP = telMatch[1].replace(/[^0-9+]/g, '');
+          if (cleanP) recipient.phone = cleanP;
+        }
 
         // Estrai note scarico
         const noteMatch = notes.match(/Istruzioni consegna:\s*([^\n]+)/i);
@@ -105,25 +124,37 @@
           recipient.zip_code = zipCityMatch[1];
           recipient.city = zipCityMatch[2].trim();
           if (zipCityMatch[3]) recipient.province = zipCityMatch[3].toUpperCase();
-          recipient.street1 = addrPart.split(zipCityMatch[1])[0].replace(/,\s*$/, '').trim();
-        } else {
+          const pStreet = addrPart.split(zipCityMatch[1])[0].replace(/,\s*$/, '').trim();
+          if (pStreet) recipient.street1 = pStreet;
+        } else if (addrPart) {
           recipient.street1 = addrPart;
-          recipient.zip_code = '50100';
-          recipient.city = 'Firenze';
         }
 
         recipient.name = recipient.referente ? `${recipient.referente} c/o ${recipient.cantiereName || recipient.company}` : (recipient.cantiereName || recipient.company);
-      } else {
-        // Consegna sede standard
-        recipient.street1 = dest.replace(/\d{5}.*$/, '').trim() || 'Via Sede';
+      } else if (dest) {
+        // Consegna sede standard con destinazione valorizzata (es. "Via Roma 10, 24035 Curno (BG)" oppure solo "CURNO")
         const zipCityMatch = dest.match(/(\d{5})\s+([^(,]+)(?:\(([A-Z]{2})\))?/i);
         if (zipCityMatch) {
           recipient.zip_code = zipCityMatch[1];
           recipient.city = zipCityMatch[2].trim();
           if (zipCityMatch[3]) recipient.province = zipCityMatch[3].toUpperCase();
+          const pStreet = dest.split(zipCityMatch[1])[0].replace(/,\s*$/, '').trim();
+          if (pStreet) recipient.street1 = pStreet;
         } else {
-          recipient.zip_code = '50145';
-          recipient.city = 'Firenze';
+          // Se dest non contiene CAP (es. è arrivata solo la città "CURNO" da Plus 2000):
+          recipient.city = dest.replace(/[(),]/g, '').trim();
+          // Non sovrascrivere street1 se abbiamo già l'indirizzo reale da anagrafica
+          if (!recipient.street1) {
+            recipient.street1 = recipient.city;
+          }
+        }
+      }
+
+      // Se il telefono è ancora vuoto, cerca nelle note
+      if (!recipient.phone) {
+        const telMatch = notes.match(/Telefono[^:]*:\s*([^\n]+)/i);
+        if (telMatch && telMatch[1]) {
+          recipient.phone = telMatch[1].replace(/[^0-9+]/g, '');
         }
       }
 
@@ -226,10 +257,10 @@
     /**
      * Crea la spedizione su Packlink Pro e aggiorna l'ordine su Supabase
      */
-    async createShipment({ order, service, parcelInfo }) {
+    async createShipment({ order, service, parcelInfo, recipient: explicitRecipient }) {
       const apiKey = this.config.getApiKey();
       const sender = this.getSenderInfo();
-      const recipient = this.parseOrderShippingInfo(order);
+      const recipient = explicitRecipient || this.parseOrderShippingInfo(order);
 
       const trackingNumber = `PK-${service.carrierName.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-8)}`;
       const shipmentRef = `SH-${Math.floor(100000 + Math.random() * 900000)}`;

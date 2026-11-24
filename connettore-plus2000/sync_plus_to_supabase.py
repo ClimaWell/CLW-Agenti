@@ -1116,7 +1116,16 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
             t.TpConto,
             t.JConto,
             RTRIM(LTRIM(ISNULL(c.RagSoc, '') + CASE WHEN c.RagSup IS NOT NULL AND RTRIM(c.RagSup) <> '' THEN ' ' + RTRIM(c.RagSup) ELSE '' END)) as Cliente,
+            RTRIM(ISNULL(c.Indirizzo, '')) as IndirizzoCliente,
+            RTRIM(ISNULL(c.Cap, '')) as CapCliente,
             RTRIM(ISNULL(c.Citta, '')) as Citta,
+            RTRIM(ISNULL(c.Provincia, '')) as ProvinciaCliente,
+            COALESCE(NULLIF(RTRIM(c.Telefono), ''), NULLIF(RTRIM(c.Cellulare), ''), '') as TelefonoCliente,
+            COALESCE(NULLIF(RTRIM(c.EMail), ''), NULLIF(RTRIM(c.OclMail), ''), '') as EmailCliente,
+            RTRIM(ISNULL(t.IndirizzoRec, '')) as IndirizzoRec,
+            RTRIM(ISNULL(t.CapRec, '')) as CapRec,
+            RTRIM(ISNULL(t.CittaRec, '')) as CittaRec,
+            RTRIM(ISNULL(t.ProvinciaRec, '')) as ProvinciaRec,
             RTRIM(ISNULL(t.RifOrd, '')) as RiferimentoOrdine,
             ISNULL(t.ATotale, 0) as TotaleImponibile,
             ISNULL(CASE WHEN t.ATotaleIC > t.ATotale THEN t.ATotaleIC - t.ATotale ELSE 0 END, 0) as TotaleIva,
@@ -1275,11 +1284,32 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                 customers_from_orders[cust_code] = {
                     "code": cust_code,
                     "name": ord_info["Cliente"] or f"Cliente {cust_code}",
-                    "city": ord_info["Citta"] or "",
+                    "address": ord_info.get("IndirizzoCliente") or "",
+                    "city": ord_info.get("Citta") or "",
+                    "postal_code": ord_info.get("CapCliente") or "",
+                    "province": ord_info.get("ProvinciaCliente") or "",
+                    "phone": ord_info.get("TelefonoCliente") or "",
+                    "email": ord_info.get("EmailCliente") or "",
                     "country": "Italia",
                     "sdi_code": "0000000",
                     "payment_method": "BB30DF"
                 }
+
+            # Calcolo indirizzo destinazione completo (consegna cantiere/diversa se presente, altrimenti anagrafica)
+            ind_dest = ord_info.get("IndirizzoRec") or ord_info.get("IndirizzoCliente") or ""
+            cap_dest = ord_info.get("CapRec") or ord_info.get("CapCliente") or ""
+            cit_dest = ord_info.get("CittaRec") or ord_info.get("Citta") or ""
+            prv_dest = ord_info.get("ProvinciaRec") or ord_info.get("ProvinciaCliente") or ""
+
+            dest_parts = []
+            if ind_dest:
+                dest_parts.append(ind_dest)
+            if cap_dest or cit_dest:
+                loc_txt = f"{cap_dest} {cit_dest}".strip()
+                if prv_dest:
+                    loc_txt += f" ({prv_dest})"
+                dest_parts.append(loc_txt)
+            full_dest_address = ", ".join(dest_parts) if dest_parts else (ord_info.get("Citta") or "")
 
             doc_payload = {
                 "document_type": tp_doc,
@@ -1292,7 +1322,7 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                 "subtotal": float(ord_info["TotaleImponibile"] or 0),
                 "vat_total": float(ord_info["TotaleIva"] or 0),
                 "total": float(ord_info["TotaleDocumento"] or 0),
-                "destination_address": ord_info["Citta"] or "",
+                "destination_address": full_dest_address,
                 "notes": ord_info["RiferimentoOrdine"] or "",
                 "plus_doc_id": f"{tp_doc} {y_doc}/{anno} (ID:{doc_id})"
             }

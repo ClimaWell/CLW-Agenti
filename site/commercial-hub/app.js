@@ -3508,8 +3508,20 @@ window.openPacklinkShipmentModal = async function(docNumber) {
   const mount = document.getElementById('packlinkModalMount');
   if (!mount) return;
 
+  let cust = null;
+  if (window.ClwData && typeof window.ClwData.getCustomers === 'function') {
+    try {
+      const allC = await window.ClwData.getCustomers();
+      if (Array.isArray(allC)) {
+        const cCode = String(order.customer_code || '').trim();
+        const cName = String(order.customer_name || '').trim().toLowerCase();
+        cust = allC.find(c => (cCode && String(c.code).trim() === cCode) || (cName && String(c.name).trim().toLowerCase() === cName));
+      }
+    } catch (e) {}
+  }
+
   const sender = window.PacklinkService.getSenderInfo();
-  const recipient = window.PacklinkService.parseOrderShippingInfo(order);
+  const recipient = window.PacklinkService.parseOrderShippingInfo(order, cust);
 
   _activeShipmentModal = { order, recipient };
 
@@ -3527,17 +3539,47 @@ window.openPacklinkShipmentModal = async function(docNumber) {
           <button style="background:transparent; border:none; font-size:1.4rem; cursor:pointer; color:#94a3b8;" onclick="closePacklinkModal()">✕</button>
         </div>
 
-        <!-- RIEPILOGO DESTINAZIONE / CANTIERE -->
-        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin-bottom:18px;">
-          <div style="font-weight:700; color:#1e40af; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-            <span>${recipient.isCantiere ? '🏗️ DESTINAZIONE CANTIERE' : '🏢 CONSEGNA SEDE'}</span>
+        <!-- RIEPILOGO & MODIFICA DESTINAZIONE (EDITABILE) -->
+        <div style="background:#eff6ff; border:1.5px solid #93c5fd; border-radius:10px; padding:14px 16px; margin-bottom:18px;">
+          <div style="font-weight:700; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+            <span>${recipient.isCantiere ? '🏗️ DESTINAZIONE CANTIERE' : '🏢 DESTINATARIO SPEDIZIONE'}</span>
+            <small style="font-weight:600; color:#2563eb;">Verifica o modifica i dati del destinatario</small>
           </div>
-          <div style="font-size:0.88rem; color:#0f172a;">
-            <strong>Destinatario:</strong> ${escapeHtml(recipient.name)}<br>
-            <strong>Indirizzo:</strong> ${escapeHtml(recipient.street1)}, ${escapeHtml(recipient.zip_code)} ${escapeHtml(recipient.city)} (${escapeHtml(recipient.province)})<br>
-            <strong>Contatto Referente:</strong> ${escapeHtml(recipient.phone)} ${recipient.referente ? `(${escapeHtml(recipient.referente)})` : ''}
+          <div style="display:grid; grid-template-columns:1.3fr 1fr; gap:10px; margin-bottom:10px;">
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Destinatario / Impresa *</label>
+              <input type="text" id="shipRecipientName" class="hub-input" value="${escapeHtml(recipient.name)}" style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Indirizzo (Via e Civico) *</label>
+              <input type="text" id="shipStreet" class="hub-input" value="${escapeHtml(recipient.street1)}" placeholder="es. Via Meucci 12" style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;">
+            </div>
           </div>
-          ${recipient.deliveryNotes ? `<div style="margin-top:6px; font-size:0.82rem; color:#1e40af; background:rgba(255,255,255,0.6); padding:4px 8px; border-radius:4px;"><strong>Note Consegna:</strong> ${escapeHtml(recipient.deliveryNotes)}</div>` : ''}
+          <div style="display:grid; grid-template-columns:1fr 1.5fr 0.8fr; gap:10px; margin-bottom:10px;">
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">CAP Destinazione *</label>
+              <input type="text" id="shipZip" class="hub-input" value="${escapeHtml(recipient.zip_code)}" placeholder="es. 24035" style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;" onchange="calculatePacklinkRates()">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Città *</label>
+              <input type="text" id="shipCity" class="hub-input" value="${escapeHtml(recipient.city)}" placeholder="es. Curno" style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Provincia *</label>
+              <input type="text" id="shipProvince" class="hub-input" value="${escapeHtml(recipient.province)}" placeholder="BG" maxlength="2" style="background:#fff; font-weight:600; padding:7px 10px; text-transform:uppercase; color:#0f172a;">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Cellulare / Telefono Referente *</label>
+              <input type="tel" id="shipPhone" class="hub-input" value="${escapeHtml(recipient.phone)}" placeholder="Cellulare per corriere..." style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; font-weight:700; color:#1e3a8a; display:block; margin-bottom:3px;">Email Notifiche Tracking</label>
+              <input type="email" id="shipEmail" class="hub-input" value="${escapeHtml(recipient.email)}" placeholder="Email cliente..." style="background:#fff; font-weight:600; padding:7px 10px; color:#0f172a;">
+            </div>
+          </div>
+          ${recipient.deliveryNotes ? `<div style="margin-top:10px; font-size:0.82rem; color:#1e40af; background:rgba(255,255,255,0.8); padding:6px 10px; border-radius:6px; border:1px dashed #93c5fd;"><strong>Istruzioni Consegna / Scarico:</strong> ${escapeHtml(recipient.deliveryNotes)}</div>` : ''}
         </div>
 
         <!-- SPECIFICHE PACCO / COLLO -->
@@ -3598,7 +3640,7 @@ window.calculatePacklinkRates = async function() {
   const length = parseFloat(document.getElementById('parcelLength')?.value) || 60;
   const width = parseFloat(document.getElementById('parcelWidth')?.value) || 40;
   const height = parseFloat(document.getElementById('parcelHeight')?.value) || 35;
-  const toZip = _activeShipmentModal.recipient.zip_code || '50100';
+  const toZip = document.getElementById('shipZip')?.value.trim() || _activeShipmentModal.recipient.zip_code || '50100';
 
   const rates = await window.PacklinkService.getRates({ toZip, weight, length, width, height });
   _calculatedRates = rates;
@@ -3640,6 +3682,28 @@ window.selectPacklinkRate = function(serviceId) {
 window.confirmPacklinkShipment = async function() {
   if (!_activeShipmentModal) return;
 
+  const recName = document.getElementById('shipRecipientName')?.value.trim();
+  const recStreet = document.getElementById('shipStreet')?.value.trim();
+  const recZip = document.getElementById('shipZip')?.value.trim();
+  const recCity = document.getElementById('shipCity')?.value.trim();
+  const recProv = document.getElementById('shipProvince')?.value.trim().toUpperCase();
+  const recPhone = document.getElementById('shipPhone')?.value.trim();
+  const recEmail = document.getElementById('shipEmail')?.value.trim();
+
+  if (!recStreet || !recZip || !recCity) {
+    alert('Attenzione: inserisci Via, CAP e Città di destinazione validi.');
+    return;
+  }
+
+  _activeShipmentModal.recipient.name = recName || _activeShipmentModal.recipient.name;
+  _activeShipmentModal.recipient.company = recName || _activeShipmentModal.recipient.company;
+  _activeShipmentModal.recipient.street1 = recStreet;
+  _activeShipmentModal.recipient.zip_code = recZip;
+  _activeShipmentModal.recipient.city = recCity;
+  _activeShipmentModal.recipient.province = recProv || 'IT';
+  _activeShipmentModal.recipient.phone = recPhone || '';
+  _activeShipmentModal.recipient.email = recEmail || '';
+
   const selectedRateId = document.querySelector('input[name="packlinkSelectedRate"]:checked')?.value;
   const service = _calculatedRates.find(r => r.serviceId === selectedRateId) || _calculatedRates[0];
 
@@ -3656,7 +3720,8 @@ window.confirmPacklinkShipment = async function() {
     const res = await window.PacklinkService.createShipment({
       order: _activeShipmentModal.order,
       service,
-      parcelInfo: { weight, length, width, height }
+      parcelInfo: { weight, length, width, height },
+      recipient: _activeShipmentModal.recipient
     });
 
     alert(`🎉 Spedizione Creata con Successo!\n\nCorriere: ${res.carrierName}\nCodice Tracking / Lettera di Vettura: ${res.trackingNumber}\n\nLo stato dell'ordine è stato aggiornato in 'Spedito' su Supabase e il cliente può seguirlo in tempo reale dal suo portale B2B.`);
