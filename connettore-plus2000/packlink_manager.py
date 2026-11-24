@@ -120,6 +120,14 @@ def parse_order_recipient(order):
         "delivery_notes": ""
     }
 
+    # Controllo se è presente un destinatario specifico indicato con [DEST: ...]
+    dest_m = re.search(r"\[DEST:\s*([^\]]+)\]", dest, re.IGNORECASE)
+    if dest_m:
+        dest_company = dest_m.group(1).strip()
+        recipient["name"] = dest_company
+        recipient["company"] = dest_company
+        dest = re.sub(r"\[DEST:[^\]]+\]\s*", "", dest, flags=re.IGNORECASE).strip()
+
     if "[CANTIERE:" in dest or "DESTINAZIONE DIVERSA CANTIERE" in notes:
         recipient["is_cantiere"] = True
         c_m = re.search(r"\[CANTIERE:\s*([^\]]+)\]", dest, re.IGNORECASE)
@@ -129,7 +137,7 @@ def parse_order_recipient(order):
         ref_m = re.search(r"Referente[^:]*:\s*([^\n]+)", notes, re.IGNORECASE)
         if ref_m:
             ref_name = ref_m.group(1).strip()
-            recipient["name"] = f"{ref_name} c/o {recipient['cantiere_nome'] or cust_name}"
+            recipient["name"] = f"{ref_name} c/o {recipient['cantiere_nome'] or recipient['company']}"
 
         tel_m = re.search(r"Telefono[^:]*:\s*([^\n]+)", notes, re.IGNORECASE)
         if tel_m:
@@ -154,7 +162,7 @@ def parse_order_recipient(order):
         elif addr_part:
             recipient["street1"] = addr_part
     else:
-        # Indirizzo sede standard
+        # Indirizzo sede standard o destinatario diverso
         zip_city = re.search(r"(\d{5})\s+([^(,]+)(?:\(([A-Z]{2})\))?", dest)
         if zip_city:
             recipient["zip_code"] = zip_city.group(1)

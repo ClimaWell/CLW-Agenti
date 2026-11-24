@@ -1122,10 +1122,34 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
             RTRIM(ISNULL(c.Provincia, '')) as ProvinciaCliente,
             COALESCE(NULLIF(RTRIM(c.Telefono), ''), NULLIF(RTRIM(c.Cellulare), ''), '') as TelefonoCliente,
             COALESCE(NULLIF(RTRIM(c.EMail), ''), NULLIF(RTRIM(c.OclMail), ''), '') as EmailCliente,
+            -- Dati Cliente Destinatario (JContoDest in DocTes)
+            t.TpContoDest,
+            t.JContoDest,
+            RTRIM(LTRIM(ISNULL(cd.RagSoc, '') + CASE WHEN cd.RagSup IS NOT NULL AND RTRIM(cd.RagSup) <> '' THEN ' ' + RTRIM(cd.RagSup) ELSE '' END)) as ClienteDest,
+            RTRIM(ISNULL(cd.Indirizzo, '')) as IndirizzoClienteDest,
+            RTRIM(ISNULL(cd.Cap, '')) as CapClienteDest,
+            RTRIM(ISNULL(cd.Citta, '')) as CittaClienteDest,
+            RTRIM(ISNULL(cd.Provincia, '')) as ProvinciaClienteDest,
+            COALESCE(NULLIF(RTRIM(cd.Telefono), ''), NULLIF(RTRIM(cd.Cellulare), ''), '') as TelefonoClienteDest,
+            COALESCE(NULLIF(RTRIM(cd.EMail), ''), NULLIF(RTRIM(cd.OclMail), ''), '') as EmailClienteDest,
+            -- Dati Recapito / Cantiere presenti direttamente su testata DocTes
+            RTRIM(ISNULL(t.RagSocRec, '')) as RagSocRec,
+            RTRIM(ISNULL(t.RagSupRec, '')) as RagSupRec,
             RTRIM(ISNULL(t.IndirizzoRec, '')) as IndirizzoRec,
             RTRIM(ISNULL(t.CapRec, '')) as CapRec,
             RTRIM(ISNULL(t.CittaRec, '')) as CittaRec,
             RTRIM(ISNULL(t.ProvinciaRec, '')) as ProvinciaRec,
+            t.JRecapito,
+            t.JRecapitoDest,
+            -- Dati agganciati da anagrafica Recapiti se JRecapito valorizzato
+            RTRIM(ISNULL(rec.RagSoc, '')) as RagSocRecapito,
+            RTRIM(ISNULL(rec.Indirizzo, '')) as IndirizzoRecapito,
+            RTRIM(ISNULL(rec.Cap, '')) as CapRecapito,
+            RTRIM(ISNULL(rec.Citta, '')) as CittaRecapito,
+            RTRIM(ISNULL(rec.Provincia, '')) as ProvinciaRecapito,
+            COALESCE(NULLIF(RTRIM(rec.Telefono), ''), NULLIF(RTRIM(rec.Cellulare), ''), '') as TelefonoRecapito,
+            COALESCE(NULLIF(RTRIM(rec.EMail), ''), '') as EmailRecapito,
+            -- Riferimento e totali
             RTRIM(ISNULL(t.RifOrd, '')) as RiferimentoOrdine,
             ISNULL(t.ATotale, 0) as TotaleImponibile,
             ISNULL(CASE WHEN t.ATotaleIC > t.ATotale THEN t.ATotaleIC - t.ATotale ELSE 0 END, 0) as TotaleIva,
@@ -1134,6 +1158,8 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
             RTRIM(ISNULL(ag.RagSoc, '')) as AgenteNome
         FROM DocTes t WITH (NOLOCK)
         LEFT JOIN CliFor c WITH (NOLOCK) ON t.TpConto = c.TpConto AND t.JConto = c.JConto
+        LEFT JOIN CliFor cd WITH (NOLOCK) ON t.TpContoDest = cd.TpConto AND t.JContoDest = cd.JConto AND t.JContoDest > 0
+        LEFT JOIN Recapiti rec WITH (NOLOCK) ON rec.TpConto = t.TpConto AND rec.JConto = t.JConto AND rec.JRecapito = t.JRecapito AND t.JRecapito > 0
         LEFT JOIN CliFor ag WITH (NOLOCK) ON ag.TpConto = 'F' AND ag.JConto = t.JAgente
         WHERE t.TpDoc IN ('OCL', 'ORD')
           AND (t.Evaso = 'N' OR t.Evaso IS NULL)
@@ -1295,11 +1321,75 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                     "payment_method": "BB30DF"
                 }
 
-            # Calcolo indirizzo destinazione completo (consegna cantiere/diversa se presente, altrimenti anagrafica)
-            ind_dest = ord_info.get("IndirizzoRec") or ord_info.get("IndirizzoCliente") or ""
-            cap_dest = ord_info.get("CapRec") or ord_info.get("CapCliente") or ""
-            cit_dest = ord_info.get("CittaRec") or ord_info.get("Citta") or ""
-            prv_dest = ord_info.get("ProvinciaRec") or ord_info.get("ProvinciaCliente") or ""
+            # Calcolo indirizzo destinazione completo con gestione CLIENTE DESTINATARIO e RECAPITO/CANTIERE
+            raw_dest_code = str(ord_info.get("JContoDest") or "").strip()
+            has_dest_account = bool(raw_dest_code and raw_dest_code not in ["0", "", raw_cust_code])
+
+            # Priorità Ragione Sociale Destinatario:
+            # 1. RagSocRec esplicita su DocTes (es. Cantiere o filiale)
+            # 2. RagSocRecapito da tabella Recapiti
+            # 3. ClienteDest se JContoDest specificato e diverso da JConto
+            # 4. Cliente ordinante
+            rag_soc_dest = (
+                ord_info.get("RagSocRec") 
+                or ord_info.get("RagSocRecapito") 
+                or (ord_info.get("ClienteDest") if has_dest_account else "")
+                or ord_info.get("Cliente") 
+                or ""
+            ).strip()
+
+            # Priorità Indirizzo:
+            # 1. IndirizzoRec esplicito su DocTes
+            # 2. IndirizzoRecapito da tabella Recapiti
+            # 3. IndirizzoClienteDest dal conto destinatario
+            # 4. IndirizzoCliente ordinante
+            ind_dest = (
+                ord_info.get("IndirizzoRec") 
+                or ord_info.get("IndirizzoRecapito") 
+                or (ord_info.get("IndirizzoClienteDest") if has_dest_account and ord_info.get("IndirizzoClienteDest") else "")
+                or ord_info.get("IndirizzoCliente") 
+                or ""
+            ).strip()
+
+            cap_dest = (
+                ord_info.get("CapRec") 
+                or ord_info.get("CapRecapito") 
+                or (ord_info.get("CapClienteDest") if has_dest_account and ord_info.get("CapClienteDest") else "")
+                or ord_info.get("CapCliente") 
+                or ""
+            ).strip()
+
+            cit_dest = (
+                ord_info.get("CittaRec") 
+                or ord_info.get("CittaRecapito") 
+                or (ord_info.get("CittaClienteDest") if has_dest_account and ord_info.get("CittaClienteDest") else "")
+                or ord_info.get("Citta") 
+                or ""
+            ).strip()
+
+            prv_dest = (
+                ord_info.get("ProvinciaRec") 
+                or ord_info.get("ProvinciaRecapito") 
+                or (ord_info.get("ProvinciaClienteDest") if has_dest_account and ord_info.get("ProvinciaClienteDest") else "")
+                or ord_info.get("ProvinciaCliente") 
+                or ""
+            ).strip()
+
+            # Registrazione preventiva anche del Cliente Destinatario in customers
+            if has_dest_account and raw_dest_code not in customers_from_orders:
+                customers_from_orders[raw_dest_code] = {
+                    "code": raw_dest_code,
+                    "name": ord_info.get("ClienteDest") or f"Destinatario {raw_dest_code}",
+                    "address": ord_info.get("IndirizzoClienteDest") or "",
+                    "city": ord_info.get("CittaClienteDest") or "",
+                    "postal_code": ord_info.get("CapClienteDest") or "",
+                    "province": ord_info.get("ProvinciaClienteDest") or "",
+                    "phone": ord_info.get("TelefonoClienteDest") or "",
+                    "email": ord_info.get("EmailClienteDest") or "",
+                    "country": "Italia",
+                    "sdi_code": "0000000",
+                    "payment_method": "BB30DF"
+                }
 
             dest_parts = []
             if ind_dest:
@@ -1309,7 +1399,13 @@ def sync_open_orders_from_plus_to_supabase(cursor, syncer, force=False):
                 if prv_dest:
                     loc_txt += f" ({prv_dest})"
                 dest_parts.append(loc_txt)
-            full_dest_address = ", ".join(dest_parts) if dest_parts else (ord_info.get("Citta") or "")
+            formatted_addr = ", ".join(dest_parts) if dest_parts else (cit_dest or ord_info.get("Citta") or "")
+
+            # Se il destinatario (es. cantiere/filiale/destinatario terzo) differisce dal cliente ordinante:
+            if rag_soc_dest and rag_soc_dest.lower() != (ord_info.get("Cliente") or "").lower():
+                full_dest_address = f"[DEST: {rag_soc_dest}] {formatted_addr}"
+            else:
+                full_dest_address = formatted_addr
 
             doc_payload = {
                 "document_type": tp_doc,

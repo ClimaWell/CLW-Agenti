@@ -132,17 +132,25 @@
 
         recipient.name = recipient.referente ? `${recipient.referente} c/o ${recipient.cantiereName || recipient.company}` : (recipient.cantiereName || recipient.company);
       } else if (dest) {
+        // Tag Destinatario diverso esplicito (es. "[DEST: IDROTIRRENA] VIA MARAGLIANO 98/A, 50144 FIRENZE (FI)")
+        const destMatch = dest.match(/\[DEST:\s*([^\]]+)\]/i);
+        if (destMatch && destMatch[1]) {
+          recipient.name = destMatch[1].trim();
+          recipient.company = destMatch[1].trim();
+        }
+        const cleanDest = dest.replace(/\[DEST:[^\]]+\]\s*/i, '').trim();
+
         // Consegna sede standard con destinazione valorizzata (es. "Via Roma 10, 24035 Curno (BG)" oppure solo "CURNO")
-        const zipCityMatch = dest.match(/(\d{5})\s+([^(,]+)(?:\(([A-Z]{2})\))?/i);
+        const zipCityMatch = cleanDest.match(/(\d{5})\s+([^(,]+)(?:\(([A-Z]{2})\))?/i);
         if (zipCityMatch) {
           recipient.zip_code = zipCityMatch[1];
           recipient.city = zipCityMatch[2].trim();
           if (zipCityMatch[3]) recipient.province = zipCityMatch[3].toUpperCase();
-          const pStreet = dest.split(zipCityMatch[1])[0].replace(/,\s*$/, '').trim();
+          const pStreet = cleanDest.split(zipCityMatch[1])[0].replace(/,\s*$/, '').trim();
           if (pStreet) recipient.street1 = pStreet;
         } else {
           // Se dest non contiene CAP (es. è arrivata solo la città "CURNO" da Plus 2000):
-          recipient.city = dest.replace(/[(),]/g, '').trim();
+          recipient.city = cleanDest.replace(/[(),]/g, '').trim();
           // Non sovrascrivere street1 se abbiamo già l'indirizzo reale da anagrafica
           if (!recipient.street1) {
             recipient.street1 = recipient.city;

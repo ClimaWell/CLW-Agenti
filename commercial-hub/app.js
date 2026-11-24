@@ -3445,15 +3445,24 @@ function renderPacklinkTable() {
             badgeStatus = '<span class="status-badge" style="background:#d1fae5; color:#065f46;">🟢 Spedito</span>';
           }
 
-          let destBadge = isCantiere
-            ? `<div style="background:#eff6ff; border:1px solid #bfdbfe; padding:6px 10px; border-radius:6px; font-size:0.82rem; color:#1e40af;">
+          const isDestDiverso = (o.destination_address || '').includes('[DEST:');
+          let destBadge = '';
+          if (isCantiere) {
+            destBadge = `<div style="background:#eff6ff; border:1px solid #bfdbfe; padding:6px 10px; border-radius:6px; font-size:0.82rem; color:#1e40af;">
                 <div style="font-weight:700;">🏗️ Cantiere: ${escapeHtml(shippingInfo.cantiereName || 'Cantiere Speciale')}</div>
                 <div>📍 ${escapeHtml(shippingInfo.street1 || o.destination_address)}, ${escapeHtml(shippingInfo.zip_code)} ${escapeHtml(shippingInfo.city)} (${escapeHtml(shippingInfo.province)})</div>
                 ${shippingInfo.referente ? `<div style="color:#0369a1; margin-top:2px;">👤 <strong>Ref:</strong> ${escapeHtml(shippingInfo.referente)} · 📞 <strong>Tel:</strong> <a href="tel:${escapeHtml(shippingInfo.phone)}" style="color:#0284c7; font-weight:700;">${escapeHtml(shippingInfo.phone)}</a></div>` : ''}
-              </div>`
-            : `<div style="font-size:0.82rem; color:#475569;">
-                <div>🏢 <strong>Sede Legale:</strong> ${escapeHtml(o.destination_address || 'Sede anagrafica cliente')}</div>
               </div>`;
+          } else if (isDestDiverso) {
+            destBadge = `<div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:6px 10px; border-radius:6px; font-size:0.82rem; color:#166534;">
+                <div style="font-weight:700;">🏢 Destinatario: ${escapeHtml(shippingInfo.company || shippingInfo.name || 'Destinazione Diversa')}</div>
+                <div>📍 ${escapeHtml(shippingInfo.street1 || o.destination_address)}, ${escapeHtml(shippingInfo.zip_code)} ${escapeHtml(shippingInfo.city)} (${escapeHtml(shippingInfo.province)})</div>
+              </div>`;
+          } else {
+            destBadge = `<div style="font-size:0.82rem; color:#475569;">
+                <div>🏢 <strong>Sede Consegna:</strong> ${escapeHtml(o.destination_address || 'Sede anagrafica cliente')}</div>
+              </div>`;
+          }
 
           let trackHtml = isShipped
             ? `<div style="font-size:0.82rem;">
