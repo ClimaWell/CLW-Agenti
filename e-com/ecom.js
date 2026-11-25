@@ -987,6 +987,16 @@
       }
     }
 
+    // Riconoscimento Campagna Speciale (es. Black Friday)
+    if (EcomState.context.campaignId && String(EcomState.context.campaignId).toLowerCase().includes('black')) {
+      const bannerTag = document.getElementById('promoExtraDiscountTag');
+      const bannerTitle = document.getElementById('promoBannerTitle');
+      const bannerDesc = document.getElementById('promoBannerDesc');
+      if (bannerTag) bannerTag.innerHTML = '🖤 SPECIAL BLACK FRIDAY • SCONTI EXTRA &amp; PRONTA CONSEGNA';
+      if (bannerTitle) bannerTitle.innerHTML = 'Offerte Black Friday Termoidraulica &amp; Climatizzazione';
+      if (bannerDesc) bannerDesc.innerHTML = 'Approfitta dei prezzi promozionali dedicati al Black Friday con disponibilità limitata a magazzino, spedizione rapida 24/48h o ritiro al banco!';
+    }
+
     if (!EcomState.context.promoArticle) return;
     const found = getProductByCode(EcomState.context.promoArticle);
     if (found) {
