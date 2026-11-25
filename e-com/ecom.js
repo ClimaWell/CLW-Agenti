@@ -6,167 +6,267 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY_TOP10 = 'clw_ecom_top10_seo_v2';
+  const STORAGE_KEY_TOP10 = 'clw_ecom_top10_bf_v3';
   const STORAGE_KEY_CART = 'clw_ecom_cart_v1';
   const STORAGE_KEY_PAY_RULES = 'clw_ecom_payment_rules_v1';
 
-  // Configurazione Predefinita dei 10 Articoli di Punta per Acquisto Diretto & SEO
-    const DEFAULT_TOP10_CONFIG = [
+  // Configurazione Ufficiale Articoli Black Friday Core Equipment & Climawell Store (-50%)
+  const DEFAULT_TOP10_CONFIG = [
     {
-      code: 'CW-CLIMA-12',
-      seoTitle: 'Climatizzatore Parete Monosplit 12000 BTU Inverter R32 Wi-Fi Classe A+++',
-      seoDescription: 'Monosplit inverter pompa di calore 12000 BTU con modulo Wi-Fi integrato, gas ecologico R32 e massima silenziosità operativa 19 dB(A).',
-      highlights: ['Classe energetica A+++ / A++', 'Wi-Fi integrato per controllo da smartphone', 'Unità interna + esterna completa'],
-      badge: '🔥 #1 Più Venduto',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 680.00,
-      listPrice: 910.00,
-      stock: 12,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-CAB-8090',
-      seoTitle: 'Cabina Box Doccia Angolare Cristallo Trasparente 6mm Reversibile (68/78 x 82/92 cm)',
-      seoDescription: 'Box doccia angolare reversibile con cristallo temperato di sicurezza 6 mm, chiusura magnetica e sgancio rapido ante.',
-      highlights: ['Cristallo temperato 6 mm certificato', 'Sgancio rapido per pulizia facile', 'Estensibilità 68-78 x 82-92 cm'],
-      badge: '🚿 Linea Bagno',
-      brand: 'CLIMAWELL',
-      family: 'ARREDO',
-      price: 300.00,
-      listPrice: 420.00,
-      stock: 8,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-PDC-16M',
-      seoTitle: 'Pompa di Calore Idronica Aria-Acqua Monoblocco 16 kW R32 Trifase A+++',
-      seoDescription: 'Pompa di calore monoblocco 16 kW ad altissima efficienza per riscaldamento, raffrescamento e acqua calda sanitaria.',
-      highlights: ['Idonea Conto Termico & Ecobonus', 'Monoblocco R32 ad alta efficienza', 'Mandata acqua fino a 60°C'],
-      badge: '💎 Alta Efficienza',
-      brand: 'CLIMAWELL',
-      family: 'POMPE',
-      price: 4320.00,
-      listPrice: 5600.00,
-      stock: 3,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-CLIMA-ECO12',
-      seoTitle: 'Climatizzatore Monosplit Inverter 12000 BTU Pompa di Calore R32 Silenzioso',
-      seoDescription: 'Condizionatore 12000 BTU (3,5 kW) in pompa di calore con compressore inverter ad alta affidabilità e filtro purificatore.',
-      highlights: ['Elevata efficienza energetica', 'Funzione Deumidificazione & Notturna', 'Ideale per ambienti fino a 35-40 mq'],
-      badge: '⚡ Pronta Consegna',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 540.00,
-      listPrice: 740.00,
-      stock: 15,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-BAR-29K',
-      seoTitle: "Barriera d'Aria Industriale e Commerciale a Soffitto 29 kW Alta Prevalenza",
-      seoDescription: "Barriera a lama d'aria professionale 29 kW per ingressi commerciali, negozi e capannoni con abbattimento dispersioni termiche.",
-      highlights: ['Potenza termica 29 kW alta prevalenza', 'Protezione antipolvere e isolamento', 'Installazione pensile o incasso'],
-      badge: '🏢 Linea Business',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 1850.00,
-      listPrice: 2400.00,
-      stock: 4,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-CLIMA-COMF12',
-      seoTitle: 'Climatizzatore Inverter 12000 BTU R32 a Diffusione Delicata Wi-Fi A+++',
-      seoDescription: 'Condizionatore con tecnologia a microfori per diffusione aria omogenea senza getto diretto, controllo smart e filtro antibatterico.',
-      highlights: ["Comfort elevato senza getto d'aria diretto", 'Controllo vocale e App Smart', 'Classe energetica A+++'],
-      badge: '❄️ Comfort Silenzioso',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 620.00,
-      listPrice: 850.00,
-      stock: 9,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-BOILER-PDC110',
-      seoTitle: 'Scaldacqua a Pompa di Calore Murale 110 Litri Monoblocco Classe A+',
-      seoDescription: 'Boiler scaldabagno in pompa di calore da 110 litri ad alto risparmio energetico (-70% consumi elettrici rispetto a boiler tradizionale).',
-      highlights: ['Risparmio energetico fino al 70%', 'Protezione attiva anticorrosione', 'Funzionamento silenzioso 50 dB(A)'],
-      badge: '🔥 Risparmio -70%',
-      brand: 'CLIMAWELL',
-      family: 'POMPE',
-      price: 890.00,
-      listPrice: 1190.00,
-      stock: 6,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-WALKIN-120',
-      seoTitle: 'Parete Doccia Walk-In Cristallo Temperato 8mm Anticalcare 120x200 cm Profilo Cromo',
-      seoDescription: 'Parete doccia fissa aperta Walk-In da 120 cm in vetro temperato 8 mm con trattamento anticalcare permanente e braccio di supporto.',
-      highlights: ['Vetro di sicurezza 8 mm alto spessore', 'Trattamento Anticalcare EasyClean', 'Installazione filo pavimento o piatto'],
-      badge: '✨ Design Moderno',
-      brand: 'CLIMAWELL',
-      family: 'ARREDO',
-      price: 275.00,
-      listPrice: 390.00,
-      stock: 10,
-      imageUrl: ''
-    },
-    {
-      code: 'CW-DUAL-912',
-      seoTitle: 'Climatizzatore Dual Split Inverter R32 (9000 + 12000 BTU) Wi-Fi Pompa di Calore',
-      seoDescription: 'Sistema completo Dual Split con unità esterna e 2 unità interne a parete da 9000 e 12000 BTU a controllo indipendente.',
-      highlights: ['Kit completo: Motore + 2 Split + Telecomandi', 'Gestione indipendente di 2 ambienti', 'Detrazione Fiscale 50% / Conto Termico'],
-      badge: '🏠 Kit Casa 2 Stanze',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 1390.00,
-      listPrice: 1850.00,
+      code: 'COR03015010',
+      coreCode: '03015010BF',
+      model: 'PVDSA2L-A3-169LM',
+      seoTitle: 'Pompa per Vuoto Doppio Stadio 169 L/Min (PVDSA2L-A3-169LM)',
+      seoDescription: 'Pompa professionale per alto vuoto doppio stadio da 169 L/min con elettrovalvola e vacuometro. Ideale per impianti R32, R410A, R134a.',
+      highlights: ['Portata elevata 169 L/min a doppio stadio', 'Elettrovalvola di sicurezza e vacuometro di precisione', 'Garanzia Ufficiale Core Equipment'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 310.28,
+      listPrice: 620.55,
       stock: 5,
-      imageUrl: ''
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4863-large_default/pompa-per-vuoto-doppiostadio-vpea-71-dev-71-ltmin.jpg'
     },
     {
-      code: 'CW-FANCOIL-SLIM',
-      seoTitle: 'Ventilconvettore Fancoil Idronico Ultraslim Inverter DC 13 cm Caldo/Freddo Touch',
-      seoDescription: 'Terminale idronico fancoil ultrasottile (profondità soli 13 cm) con motore brushless DC inverter per pompe di calore e caldaie.',
-      highlights: ['Spessore ultrasottile 13 cm', 'Motore ventilatore DC Inverter silenzioso', 'Display touch a bordo macchina'],
-      badge: '🌡️ Ideale Pompe Calore',
-      brand: 'CLIMAWELL',
-      family: 'POMPE',
-      price: 340.00,
-      listPrice: 460.00,
-      stock: 14,
-      imageUrl: ''
+      code: 'COR03014010',
+      coreCode: '03014010BF',
+      model: 'VP-42-DEV',
+      seoTitle: 'Pompa per Vuoto Monostadio 42 L/Min (VP-42-DEV)',
+      seoDescription: 'Pompa per vuoto compatta monostadio 42 L/min per installazione e manutenzione climatizzatori e piccoli impianti refrigeranti.',
+      highlights: ['Leggera e portatile per cantieri e manutenzioni', 'Valvola di non ritorno olio integrata', 'Design robusto con impugnatura termoisolata'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 86.33,
+      listPrice: 172.66,
+      stock: 8,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4858-large_default/pompa-per-vuoto-monostadio-vp-100-dev-100-ltmin.jpg'
     },
     {
-      code: 'CW-CLIMA-PLUS12',
-      seoTitle: 'Climatizzatore Monosplit Inverter R32 Pompa di Calore Classe A++ (12000 BTU)',
-      seoDescription: 'Monosplit inverter 12000 BTU 3,5 kW con gas ecologico R32, telecomando digitale e bassissimo consumo energetico.',
-      highlights: ['Elevata affidabilità e silenziosità', 'Classe energetica A++ / A+', 'Pronta consegna con spedizione rapida'],
-      badge: '⭐ Top Rapporto Qualità/Prezzo',
-      brand: 'CLIMAWELL',
-      family: 'CLIMA',
-      price: 495.00,
-      listPrice: 680.00,
-      stock: 11,
-      imageUrl: ''
+      code: 'COR03014030',
+      coreCode: '03014030BF',
+      model: 'VP-100-DEV',
+      seoTitle: 'Pompa per Vuoto Monostadio 100 L/Min (VP-100-DEV)',
+      seoDescription: 'Pompa per vuoto monostadio ad alta efficienza 100 L/min (3,5 CFM) per impianti split e multisplit.',
+      highlights: ['Portata 100 L/min per vuoto rapido', 'Corpo motore alettato in alluminio pressofuso', 'Connessione standard 1/4 SAE'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 123.30,
+      listPrice: 246.59,
+      stock: 6,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4858-large_default/pompa-per-vuoto-monostadio-vp-100-dev-100-ltmin.jpg'
     },
     {
-      code: 'CW-NICCHIA-7080',
-      seoTitle: 'Porta Doccia Battente per Nicchia Cristallo 6mm 70-80 cm Profilo Argento',
-      seoDescription: 'Porta doccia per installazione in nicchia con apertura battente, vetro temperato trasparente 6 mm e profili ad alta resistenza.',
-      highlights: ['Vetro temperato di sicurezza 6 mm', 'Regolazione estensibilità fino a 80 cm', 'Guarnizione magnetica tenuta stagna'],
-      badge: '🚿 Soluzione Nicchia',
-      brand: 'CLIMAWELL',
-      family: 'ARREDO',
-      price: 245.00,
-      listPrice: 350.00,
+      code: 'COR03001080',
+      coreCode: '03001080V32BF',
+      model: '245SV-32',
+      seoTitle: 'Pompa Doppio Stadio 128 L/Min Specifica Gas R32 (245SV-32)',
+      seoDescription: 'Pompa per alto vuoto doppio stadio da 128 L/min a norme ATEX per gas infiammabili R32 e R1234yf con solenoide e vacuometro.',
+      highlights: ['Certificata per gas infiammabili A2L (R32 / R1234yf)', 'Vuoto finale fino a 15 micron', 'Valvola solenoide automatica antisvuotamento'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 209.37,
+      listPrice: 418.74,
+      stock: 6,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4869-large_default/pompa-per-vuoto-doppiostadio-vpea-71-dev-71-ltmin.jpg'
+    },
+    {
+      code: 'COR01004010',
+      coreCode: '01004010BF',
+      model: 'KITAZOTO50',
+      seoTitle: 'Kit Pressurizzazione Impianti ad Azoto 50 Bar in Valigetta (KITAZOTO50)',
+      seoDescription: 'Kit completo professionale per prove di tenuta, ricerca fughe e pressurizzazione impianti di condizionamento fino a 50 bar.',
+      highlights: ['Valigetta rigida antiurto con riduttore di pressione', 'Tubo flessibile ad altissima pressione 50 bar', 'Manometro certificato per prova tenuta a norme F-Gas'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 205.54,
+      listPrice: 411.08,
+      stock: 5,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4255-large_default/kitazoto50-kit-pressurizzazione-impianti-esclusa-bombola-azoto.jpg'
+    },
+    {
+      code: 'COR31006065',
+      coreCode: '31006065BF',
+      model: 'KLAR',
+      seoTitle: 'Kit Lavaggio Tubazioni Frigorifere con Raccordi in Valigia (KLAR)',
+      seoDescription: 'Sistema di lavaggio e bonifica linee frigorifere con serbatoio pressurizzabile, pistola di erogazione e raccordi universali in valigetta.',
+      highlights: ['Indispensabile per sostituzione compressori e retrofit R32', 'Pistola di lavaggio dosatrice con serbatoio 1 Litro', 'Raccordi a cono in gomma per tutte le sezioni di tubo'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 97.01,
+      listPrice: 194.01,
       stock: 7,
-      imageUrl: ''
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4264-large_default/klar-kit-lavaggio-con-raccordi-in-valigia.jpg'
+    },
+    {
+      code: 'COR01006000',
+      coreCode: '01006000BF',
+      model: 'RPA50',
+      seoTitle: 'Riduttore di Pressione Azoto 50 Bar con Valvola di Sicurezza (RPA50)',
+      seoDescription: 'Riduttore di pressione professionale per bombole azoto fino a 50 bar con doppia scala manometrica e valvola di scarico sovrapressione.',
+      highlights: ['Corpo robusto in ottone forgiato', 'Manometro protetto da gomma antiurto', 'Connessione standard bombola UNI 11144'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 117.50,
+      listPrice: 235.00,
+      stock: 6,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4250-large_default/rpa50-riduttore-press-azoto-50-bar-con-valv-sic.jpg'
+    },
+    {
+      code: 'COR31006052',
+      coreCode: '31006052BF',
+      model: 'STI-1000',
+      seoTitle: 'Liquido Lavaggio Interno Circuiti Frigoriferi 1 Lt (STI-1000)',
+      seoDescription: 'Fluido chimico ad alta evaporazione per la pulizia e sgrassaggio delle tubazioni interne negli impianti di climatizzazione.',
+      highlights: ['Non lascia residui oleosi nelle tubazioni', 'Compatibile con tutti i gas refrigeranti e oli POE/PAG', 'Confezione promozionale (Ordine minimo 12 pz)'],
+      badge: '🖤 -50% • MIN 12 PZ',
+      brand: 'CORE EQUIPMENT',
+      family: 'LAVAGGIO',
+      price: 7.08,
+      listPrice: 14.16,
+      stock: 48,
+      minQty: 12,
+      imageUrl: 'https://www.core-equipment.it/4700-large_default/detergenti-e-accessori-sti-1000-lattina-da-1-lt.jpg'
+    },
+    {
+      code: 'COR31006053',
+      coreCode: '31006053BF',
+      model: 'SLI',
+      seoTitle: 'Spray Lavaggio Tubazioni Interne Condizionamento (SLI)',
+      seoDescription: 'Bombola spray aerosol pressurizzata con cono in gomma per lavaggio rapido e bonifica di linee split e monosplit.',
+      highlights: ['Pronto all\'uso senza ausilio di serbatoi esterni', 'Pressione di spinta costante per rimuovere residui di fuliggine', 'Confezione promozionale (Ordine minimo 12 pz)'],
+      badge: '🖤 -50% • MIN 12 PZ',
+      brand: 'CORE EQUIPMENT',
+      family: 'LAVAGGIO',
+      price: 7.65,
+      listPrice: 15.29,
+      stock: 60,
+      minQty: 12,
+      imageUrl: 'https://www.core-equipment.it/4774-large_default/detergenti-e-accessori-sli-spray-lavaggio-tubazioni-interne.jpg'
+    },
+    {
+      code: 'COR31006010',
+      coreCode: '31006010BF',
+      model: 'SSE',
+      seoTitle: 'Igienizzante Sanificante Climatizzatori Spray 400 ml (SSE)',
+      seoDescription: 'Trattamento igienizzante antibatterico profumato per filtri, batterie alettate e canali di condizionamento.',
+      highlights: ['Azione battericida e fungicida certificata', 'Gradevole profumazione rinfrescante a lunga durata', 'Confezione promozionale (Ordine minimo 12 pz)'],
+      badge: '🖤 -50% • MIN 12 PZ',
+      brand: 'CORE EQUIPMENT',
+      family: 'LAVAGGIO',
+      price: 4.39,
+      listPrice: 8.77,
+      stock: 72,
+      minQty: 12,
+      imageUrl: 'https://www.core-equipment.it/4267-large_default/sse-igienizzante-400-cc.jpg'
+    },
+    {
+      code: 'COR31006020',
+      coreCode: '31006020BF',
+      model: 'POWERCLEAN-SCC',
+      seoTitle: 'Detergente Schiumogeno per Superfici Esterne 400 ml (POWERCLEAN-SCC)',
+      seoDescription: 'Schiuma detergente attiva per pulizia profonda di unità esterne, motocondensanti e carcasse da smog e grasso.',
+      highlights: ['Schiuma sgrassante ad alta aderenza', 'Non intacca le alette in alluminio e le plastiche', 'Confezione promozionale (Ordine minimo 12 pz)'],
+      badge: '🖤 -50% • MIN 12 PZ',
+      brand: 'CORE EQUIPMENT',
+      family: 'LAVAGGIO',
+      price: 6.85,
+      listPrice: 13.69,
+      stock: 48,
+      minQty: 12,
+      imageUrl: 'https://www.core-equipment.it/4266-large_default/powerclean-scc-detergente-spray-400-ml-per-superfici-esterne.jpg'
+    },
+    {
+      code: 'COR29025013',
+      coreCode: '29025013BF',
+      model: 'BE120/5',
+      seoTitle: 'Bilancia Elettronica Digitale di Carica 120 Kg con Valigia (BE120/5)',
+      seoDescription: 'Bilancia elettronica professionale da 120 Kg con risoluzione di precisione a 5 grammi per carica refrigeranti R32/R410A.',
+      highlights: ['Portata 120 Kg con precisione 5g', 'Piatto antiscivolo con display LCD retroilluminato estraibile', 'Fornita con valigetta antiurto rinforzata'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 139.87,
+      listPrice: 279.73,
+      stock: 6,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/3631-large_default/be120-5-kg-120-risoluzione-5-grammi-con-valigia.jpg'
+    },
+    {
+      code: 'COR21040980',
+      coreCode: '21040980BF',
+      model: 'FLBD',
+      seoTitle: 'Flangiatubo a Crick Eccentrico in Pollici per Rame (FLBD)',
+      seoDescription: 'Cartellatrice eccentrica professionale con frizione per tubi in rame da 1/4" a 3/4" specifica per cartelle ad alta tenuta R32.',
+      highlights: ['Cono eccentrico temprato per cartelle lisce e senza solchi', 'Meccanismo a scatto/cricchetto con frizione dinamometrica', 'Dima universale 1/4 - 5/16 - 3/8 - 1/2 - 5/8 - 3/4'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 127.54,
+      listPrice: 255.07,
+      stock: 8,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4442-large_default/flbg-flangiatubo-a-crick-alta-qualita-in-pollici-1-4-3-8-1-2-5-8-3-4.jpg'
+    },
+    {
+      code: 'COR21017014',
+      coreCode: '21017014BF',
+      model: 'CHDINPROF',
+      seoTitle: 'Set Chiavi Dinamometriche Professionali in Valigetta (CHDINPROF)',
+      seoDescription: 'Kit chiavi dinamometriche a forchetta intercambiabile con coppia di serraggio tarabile da 10 a 75 Nm per raccordi flare.',
+      highlights: ['Coppia di serraggio regolabile con certificato di taratura', 'Misure forchette: 17, 22, 24, 26, 27, 29 mm', 'Conforme alle norme di installazione a tenuta F-Gas'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 229.82,
+      listPrice: 459.64,
+      stock: 4,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/3814-large_default/chdinprof-chiavi-dinamometriche-professionali-coppia-di-serraggio-19-110-nm.jpg'
+    },
+    {
+      code: 'COR21002000',
+      coreCode: '21002000NBF',
+      model: 'SLIM',
+      seoTitle: 'Flangiatubo Elettrico a Batteria al Litio per Cartelle (SLIM)',
+      seoDescription: 'Flangiatubo a pistola automatico a batteria al litio per cartellare tubi di rame in soli 5 secondi senza sforzo manuale.',
+      highlights: ['Cartelle automatiche perfette in 5 secondi', 'Batteria al litio ad alta autonomia con caricatore rapido', 'Fornito in valigetta con dime millimetriche e in pollici'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 251.99,
+      listPrice: 503.98,
+      stock: 5,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/4795-large_default/flbgm-flangiatubo-a-crick-alta-qualita-in-mm-6-8-10-12-15-16-18.jpg'
+    },
+    {
+      code: 'COR25003011',
+      coreCode: '25003011BF',
+      model: 'TURBOSET90',
+      seoTitle: 'Stazione Saldante Autogena Compatta OXYTURBO (TURBOSET90)',
+      seoDescription: 'Postazione portatile di saldatura e brasatura autogena completa di bombole ossigeno/gas, riduttori, tubi e impugnatura con punte.',
+      highlights: ['Temperatura fiamma fino a 3100°C per brasatura rame-rame', 'Leggera, maneggevole e sicura con valvole antiritorno', 'Prodotto originale Oxyturbo ideale per frigoristi'],
+      badge: '🖤 -50% BLACK FRIDAY',
+      brand: 'CORE EQUIPMENT',
+      family: 'ATTREZZATURA',
+      price: 130.00,
+      listPrice: 260.00,
+      stock: 6,
+      minQty: 1,
+      imageUrl: 'https://www.core-equipment.it/3924-large_default/turboset90-stazione-saldante-oxyturbo-originale.jpg'
     }
   ];
 
@@ -253,7 +353,7 @@
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          EcomState.top10Config = parsed.slice(0, 12);
+          EcomState.top10Config = parsed.slice(0, 24);
           return;
         }
       }
@@ -263,7 +363,7 @@
 
   function saveTop10ConfigToStorage() {
     try {
-      localStorage.setItem(STORAGE_KEY_TOP10, JSON.stringify(EcomState.top10Config.slice(0, 12)));
+      localStorage.setItem(STORAGE_KEY_TOP10, JSON.stringify(EcomState.top10Config.slice(0, 24)));
     } catch (e) {}
   }
 
@@ -454,7 +554,7 @@
     });
 
     const featuredItems = [];
-    const top10List = EcomState.top10Config.slice(0, 12);
+    const top10List = EcomState.top10Config.slice(0, 24);
 
     top10List.forEach((cfg, idx) => {
       const key = String(cfg.code || '').trim().toUpperCase();
@@ -578,12 +678,13 @@
     if (!prod) return;
 
     const existing = EcomState.cart.find(item => item.code.toUpperCase() === prod.code.toUpperCase());
+    const minQ = prod.minQty || 1;
     if (existing) {
       existing.qty = Math.min(999, existing.qty + qtyToAdd);
     } else {
       EcomState.cart.push({
         code: prod.code,
-        qty: Math.max(1, qtyToAdd)
+        qty: Math.max(minQ, qtyToAdd)
       });
     }
 
@@ -727,6 +828,12 @@
           if (!p.isFeaturedTop10) return false;
         } else if (cat === 'STOCK') {
           if (p.stock <= 0) return false;
+        } else if (cat === 'ATTREZZATURA' || cat === 'VUOTO') {
+          const text = (p.description + ' ' + p.family + ' ' + p.brand + ' ' + (p.seoTitle || '')).toUpperCase();
+          if (!(text.includes('ATTREZZ') || text.includes('POMPA') || text.includes('VUOTO') || text.includes('AZOTO') || text.includes('FLANGIATUBO') || text.includes('BILANCIA') || text.includes('SALDANT') || text.includes('CHIAV') || text.includes('CORE'))) return false;
+        } else if (cat === 'LAVAGGIO') {
+          const text = (p.description + ' ' + p.family + ' ' + p.brand + ' ' + (p.seoTitle || '')).toUpperCase();
+          if (!(text.includes('LAVAGGIO') || text.includes('IGIENIZZ') || text.includes('DETERG') || text.includes('SPRAY') || text.includes('STI') || text.includes('SLI') || text.includes('SSE') || text.includes('POWERCLEAN'))) return false;
         } else if (cat === 'CLIMA') {
           const text = (p.description + ' ' + p.family + ' ' + p.brand + ' ' + p.seoTitle).toUpperCase();
           if (!(text.includes('CLIMA') || text.includes('SPLIT') || text.includes('BARRIERA') || text.includes('BTU') || text.includes('CONDIZIONATORE'))) return false;
@@ -762,7 +869,7 @@
     });
 
     if (cat === 'TOP10' && !q) {
-      list = list.slice(0, 12);
+      list = list.slice(0, 24);
     } else {
       list = list.slice(0, 48);
     }
@@ -1012,7 +1119,7 @@
 
   // 7. MOTORE SEO 2026: JSON-LD Google Merchant Listings & Meta Tag
   function updateSeoStructuredDataAndMeta() {
-    const top10Products = EcomState.products.filter(p => p.isFeaturedTop10).slice(0, 12);
+    const top10Products = EcomState.products.filter(p => p.isFeaturedTop10).slice(0, 24);
     const baseUrl = 'https://clw-agenti.netlify.app/e-com/';
 
     const itemListElements = top10Products.map((p, index) => {
@@ -1750,8 +1857,8 @@
   }
 
   window.ClwEcomAddProductToTop10 = function(code) {
-    if (EcomState.top10Config.length >= 12) {
-      showToast('⚠️ Hai già 12 articoli in vetrina. Rimuovine uno prima di aggiungerne un altro.');
+    if (EcomState.top10Config.length >= 24) {
+      showToast('⚠️ Hai già 20 articoli in vetrina. Rimuovine uno prima di aggiungerne un altro.');
       return;
     }
     const found = (EcomState.products || []).find(p => p.code.toUpperCase() === String(code).toUpperCase());
@@ -1797,7 +1904,7 @@
     const tbody = document.getElementById('managerTop10TableBody');
     const container = document.getElementById('managerTop10List');
     const counter = document.getElementById('managerTop10Counter');
-    const list = EcomState.top10Config.slice(0, 12);
+    const list = EcomState.top10Config.slice(0, 24);
 
     if (counter) counter.textContent = `${list.length} / 12`;
 
@@ -2782,8 +2889,8 @@
         showToast('⚠️ Seleziona prima un articolo dal menu a tendina del listino');
         return;
       }
-      if (EcomState.top10Config.length >= 12) {
-        showToast('⚠️ Hai già 12 articoli in vetrina. Rimuovine uno prima di aggiungerne un altro.');
+      if (EcomState.top10Config.length >= 24) {
+        showToast('⚠️ Hai già 20 articoli in vetrina. Rimuovine uno prima di aggiungerne un altro.');
         return;
       }
       const found = getProductByCode(code);
@@ -2830,8 +2937,8 @@
         showToast('⚠️ Inserisci almeno Codice, Titolo e Prezzo valido!');
         return;
       }
-      if (EcomState.top10Config.length >= 12) {
-        showToast('⚠️ La vetrina contiene già 12 articoli!');
+      if (EcomState.top10Config.length >= 24) {
+        showToast('⚠️ La vetrina contiene già 20 articoli!');
         return;
       }
 
@@ -2867,7 +2974,7 @@
       renderVetrinaManagerList();
       applyFilters();
       updateSeoStructuredDataAndMeta();
-      showToast('↺ Ripristinati i 12 articoli consigliati in vetrina!');
+      showToast('↺ Ripristinati i 20 articoli consigliati in vetrina!');
     });
 
     document.getElementById('btnSaveTop10Config')?.addEventListener('click', () => {
