@@ -1679,78 +1679,267 @@
       matches.map(p => `<option value="${escapeHtml(p.code)}">[${escapeHtml(p.code)}] ${escapeHtml(p.description)} — € ${euro(p.price)} (${escapeHtml(p.brand)})</option>`).join('');
   }
 
-  function renderVetrinaManagerList() {
-    const container = document.getElementById('managerTop10List');
-    const counter = document.getElementById('managerTop10Counter');
+  function switchVetrinaTab(tab) {
+    const tabs = {
+      current: { btn: 'tabVetrinaCurrent', panel: 'panelVetrinaCurrent' },
+      search: { btn: 'tabVetrinaSearch', panel: 'panelVetrinaSearch' },
+      manual: { btn: 'tabVetrinaManual', panel: 'panelVetrinaManual' }
+    };
+
+    Object.keys(tabs).forEach(k => {
+      const b = document.getElementById(tabs[k].btn);
+      const p = document.getElementById(tabs[k].panel);
+      if (k === tab) {
+        b?.classList.add('active');
+        p?.classList.remove('hidden');
+        p?.classList.add('active');
+      } else {
+        b?.classList.remove('active');
+        p?.classList.add('hidden');
+        p?.classList.remove('active');
+      }
+    });
+
+    if (tab === 'search') {
+      const q = document.getElementById('managerCatalogLiveSearch')?.value || '';
+      renderCatalogSearchResults(q);
+      setTimeout(() => document.getElementById('managerCatalogLiveSearch')?.focus(), 80);
+    } else if (tab === 'current') {
+      renderVetrinaManagerList();
+    }
+  }
+
+  function renderCatalogSearchResults(query) {
+    const container = document.getElementById('catalogSearchResultsGrid');
     if (!container) return;
 
-    const list = EcomState.top10Config.slice(0, 12);
-    if (counter) counter.textContent = `${list.length} / 12`;
+    const q = String(query || '').toLowerCase().trim();
+    const topCodes = new Set(EcomState.top10Config.map(c => String(c.code).toUpperCase()));
 
-    container.innerHTML = list.map((item, idx) => {
-      const thumbSrc = item.imageUrl || getSmartProductVisual(item);
+    // Elenco prodotti disponibili nel catalogo non ancora in vetrina
+    const matches = (EcomState.products || [])
+      .filter(p => !topCodes.has(p.code.toUpperCase()))
+      .filter(p => !q || p.code.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q))
+      .slice(0, 60);
+
+    if (matches.length === 0) {
+      container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align:center; padding:30px; color:#64748b; font-size:0.85rem;">
+          ${q ? `Nessun articolo trovato per "<strong>${escapeHtml(q)}</strong>". Prova a cercare per codice o marca.` : 'Nessun articolo disponibile da aggiungere o tutti gli articoli sono già in vetrina.'}
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = matches.map(p => {
+      const thumb = p.imageUrl || getSmartProductVisual(p);
       return `
-        <div class="manager-item-card" data-idx="${idx}">
-          <img src="${thumbSrc}" alt="${escapeHtml(item.code)}" class="manager-item-thumb" id="mgrThumb_${idx}" onerror="this.onerror=null; this.src='${getSmartProductVisual(item)}'">
-          <div class="manager-item-fields">
-            <div>
-              <label>#${idx + 1} Codice Articolo (SKU/MPN):</label>
-              <input type="text" data-field="code" data-idx="${idx}" value="${escapeHtml(item.code)}">
-            </div>
-            <div>
-              <label>Marca &amp; Prezzo Netto (€):</label>
-              <div style="display:flex; gap:6px;">
-                <input type="text" data-field="brand" data-idx="${idx}" value="${escapeHtml(item.brand || 'CLIMAWELL')}" placeholder="Marca" style="width:55%;">
-                <input type="number" step="0.01" data-field="price" data-idx="${idx}" value="${Number(item.price || 0)}" placeholder="Prezzo €" style="width:45%;">
-              </div>
-            </div>
-            <div class="full">
-              <label>Titolo Commerciale SEO (mostrato in vetrina e su Google Search):</label>
-              <input type="text" data-field="seoTitle" data-idx="${idx}" value="${escapeHtml(item.seoTitle || item.description || '')}">
-            </div>
-            <div class="full">
-              <label>URL Foto Prodotto (incolla link https://... oppure lascia vuoto per illustrazione automatica):</label>
-              <input type="url" data-field="imageUrl" data-idx="${idx}" value="${escapeHtml(item.imageUrl || '')}" placeholder="https://.../foto-articolo.jpg">
-            </div>
-            <div class="full">
-              <label>Descrizione Breve SEO (Meta Description &amp; Scheda):</label>
-              <input type="text" data-field="seoDescription" data-idx="${idx}" value="${escapeHtml(item.seoDescription || '')}">
-            </div>
+        <div class="catalog-result-card">
+          <img src="${thumb}" alt="${escapeHtml(p.code)}" class="catalog-card-thumb" onerror="this.onerror=null; this.src='${getSmartProductVisual(p)}'">
+          <div class="catalog-card-info">
+            <div class="catalog-card-code">${escapeHtml(p.code)} · ${escapeHtml(p.brand || 'CLIMAWELL')}</div>
+            <div class="catalog-card-title" title="${escapeHtml(p.description)}">${escapeHtml(p.description)}</div>
+            <div class="catalog-card-price">€ ${euro(p.price)} <small style="color:#64748b; font-weight:normal;">+ IVA</small></div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <button type="button" class="btn-remove-top10" data-remove-idx="${idx}">🗑 Rimuovi</button>
-          </div>
+          <button type="button" class="btn-add-to-top" style="background:#0284c7; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer;" onclick="window.ClwEcomAddProductToTop10('${escapeHtml(p.code)}')">
+            + Metti in Vetrina
+          </button>
         </div>
       `;
     }).join('');
+  }
 
-    container.querySelectorAll('input[data-field]').forEach(inp => {
-      inp.addEventListener('input', () => {
-        const i = parseInt(inp.getAttribute('data-idx'), 10);
-        const field = inp.getAttribute('data-field');
-        if (!EcomState.top10Config[i]) return;
-        if (field === 'price') {
-          EcomState.top10Config[i].price = parseFloat(inp.value) || 0;
-        } else {
-          EcomState.top10Config[i][field] = inp.value;
-        }
-        if (field === 'imageUrl' || field === 'brand') {
-          const thumb = document.getElementById(`mgrThumb_${i}`);
-          if (thumb) {
-            thumb.src = EcomState.top10Config[i].imageUrl || getSmartProductVisual(EcomState.top10Config[i]);
+  window.ClwEcomAddProductToTop10 = function(code) {
+    if (EcomState.top10Config.length >= 12) {
+      showToast('⚠️ Hai già 12 articoli in vetrina. Rimuovine uno prima di aggiungerne un altro.');
+      return;
+    }
+    const found = (EcomState.products || []).find(p => p.code.toUpperCase() === String(code).toUpperCase());
+    if (!found) {
+      showToast('⚠️ Articolo non trovato nel catalogo.');
+      return;
+    }
+
+    EcomState.top10Config.push({
+      code: found.code,
+      seoTitle: found.description,
+      seoDescription: found.description,
+      highlights: getDefaultHighlights(found),
+      badge: '🖤 Black Friday Promo',
+      brand: found.brand || 'CLIMAWELL',
+      family: found.family || 'CLIMA',
+      price: found.price || 0,
+      listPrice: found.listPrice || (found.price ? found.price * 1.3 : 0),
+      stock: found.stock || 10,
+      imageUrl: found.imageUrl || ''
+    });
+
+    renderVetrinaManagerList();
+    switchVetrinaTab('current');
+    showToast(`✅ Articolo "${found.code}" aggiunto alla Vetrina! Modifica il prezzo se necessario.`);
+  };
+
+  window.ClwEcomMoveTop10 = function(index, direction) {
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= EcomState.top10Config.length) return;
+    const item = EcomState.top10Config.splice(index, 1)[0];
+    EcomState.top10Config.splice(newIdx, 0, item);
+    renderVetrinaManagerList();
+  };
+
+  window.ClwEcomRemoveTop10 = function(index) {
+    EcomState.top10Config.splice(index, 1);
+    renderVetrinaManagerList();
+    showToast('🗑 Articolo rimosso dalla Vetrina.');
+  };
+
+  function renderVetrinaManagerList() {
+    const tbody = document.getElementById('managerTop10TableBody');
+    const container = document.getElementById('managerTop10List');
+    const counter = document.getElementById('managerTop10Counter');
+    const list = EcomState.top10Config.slice(0, 12);
+
+    if (counter) counter.textContent = `${list.length} / 12`;
+
+    // 1. Rendering Tabella se presente managerTop10TableBody (layout index-amm.html)
+    if (tbody) {
+      if (list.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center; padding:30px; color:#64748b;">
+              Nessun articolo in vetrina al momento. Clicca in alto su <strong>"🔍 Cerca e Aggiungi dal Listino Generale"</strong> per sceglierne uno!
+            </td>
+          </tr>
+        `;
+      } else {
+        tbody.innerHTML = list.map((item, idx) => {
+          const thumbSrc = item.imageUrl || getSmartProductVisual(item);
+          const titleVal = item.seoTitle || item.description || '';
+          const priceVal = Number(item.price || 0);
+          const listPriceVal = Number(item.listPrice || (priceVal * 1.3));
+          const stockVal = Number(item.stock !== undefined ? item.stock : 10);
+
+          return `
+            <tr data-idx="${idx}">
+              <td style="text-align:center;">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                  <button type="button" style="border:none; background:none; cursor:pointer; font-size:0.75rem; color:#64748b;" onclick="window.ClwEcomMoveTop10(${idx}, -1)" ${idx === 0 ? 'disabled style="opacity:0.2;"' : ''} title="Sposta su">▲</button>
+                  <strong style="font-size:0.8rem; color:#0f172a;">#${idx + 1}</strong>
+                  <button type="button" style="border:none; background:none; cursor:pointer; font-size:0.75rem; color:#64748b;" onclick="window.ClwEcomMoveTop10(${idx}, 1)" ${idx === list.length - 1 ? 'disabled style="opacity:0.2;"' : ''} title="Sposta giù">▼</button>
+                </div>
+              </td>
+              <td style="text-align:center;">
+                <img src="${thumbSrc}" alt="${escapeHtml(item.code)}" style="width:40px; height:40px; object-fit:contain; border-radius:4px; background:#f8fafc; border:1px solid #e2e8f0;" onerror="this.onerror=null; this.src='${getSmartProductVisual(item)}'">
+              </td>
+              <td>
+                <strong style="font-family:monospace; color:#0284c7; display:block; font-size:0.85rem;">${escapeHtml(item.code)}</strong>
+                <small style="color:#64748b;">${escapeHtml(item.brand || 'CLIMAWELL')}</small>
+              </td>
+              <td>
+                <input type="text" class="vetrina-input-title" data-field="seoTitle" data-idx="${idx}" value="${escapeHtml(titleVal)}" placeholder="Titolo mostrato in vetrina...">
+              </td>
+              <td style="text-align:right;">
+                <input type="number" step="0.01" class="vetrina-input-price" data-field="price" data-idx="${idx}" value="${priceVal.toFixed(2)}" title="Prezzo netto promozionale">
+              </td>
+              <td style="text-align:right;">
+                <input type="number" step="0.01" class="vetrina-input-listprice" data-field="listPrice" data-idx="${idx}" value="${listPriceVal.toFixed(2)}" title="Prezzo di listino barrato">
+              </td>
+              <td style="text-align:center;">
+                <input type="number" class="vetrina-input-stock" data-field="stock" data-idx="${idx}" value="${stockVal}" title="Pezzi disponibili" style="width:55px;">
+              </td>
+              <td style="text-align:center;">
+                <button type="button" style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; padding:6px 10px; font-size:0.8rem; cursor:pointer; font-weight:700;" onclick="window.ClwEcomRemoveTop10(${idx})" title="Rimuovi questo articolo dalla vetrina">
+                  🗑️
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        tbody.querySelectorAll('input[data-field]').forEach(inp => {
+          inp.addEventListener('input', () => {
+            const i = parseInt(inp.getAttribute('data-idx'), 10);
+            const field = inp.getAttribute('data-field');
+            if (!EcomState.top10Config[i]) return;
+            if (field === 'price' || field === 'listPrice') {
+              EcomState.top10Config[i][field] = parseFloat(inp.value) || 0;
+            } else if (field === 'stock') {
+              EcomState.top10Config[i][field] = parseInt(inp.value, 10) || 0;
+            } else {
+              EcomState.top10Config[i][field] = inp.value;
+            }
+          });
+        });
+      }
+    }
+
+    // 2. Rendering Box Cards se presente managerTop10List
+    if (container) {
+      container.innerHTML = list.map((item, idx) => {
+        const thumbSrc = item.imageUrl || getSmartProductVisual(item);
+        return `
+          <div class="manager-item-card" data-idx="${idx}">
+            <img src="${thumbSrc}" alt="${escapeHtml(item.code)}" class="manager-item-thumb" id="mgrThumb_${idx}" onerror="this.onerror=null; this.src='${getSmartProductVisual(item)}'">
+            <div class="manager-item-fields">
+              <div>
+                <label>#${idx + 1} Codice Articolo (SKU/MPN):</label>
+                <input type="text" data-field="code" data-idx="${idx}" value="${escapeHtml(item.code)}">
+              </div>
+              <div>
+                <label>Marca &amp; Prezzo Netto (€):</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="text" data-field="brand" data-idx="${idx}" value="${escapeHtml(item.brand || 'CLIMAWELL')}" placeholder="Marca" style="width:55%;">
+                  <input type="number" step="0.01" data-field="price" data-idx="${idx}" value="${Number(item.price || 0)}" placeholder="Prezzo €" style="width:45%;">
+                </div>
+              </div>
+              <div class="full">
+                <label>Titolo Commerciale SEO (mostrato in vetrina e su Google Search):</label>
+                <input type="text" data-field="seoTitle" data-idx="${idx}" value="${escapeHtml(item.seoTitle || item.description || '')}">
+              </div>
+              <div class="full">
+                <label>URL Foto Prodotto (incolla link https://... oppure lascia vuoto per illustrazione automatica):</label>
+                <input type="url" data-field="imageUrl" data-idx="${idx}" value="${escapeHtml(item.imageUrl || '')}" placeholder="https://.../foto-articolo.jpg">
+              </div>
+              <div class="full">
+                <label>Descrizione Breve SEO (Meta Description &amp; Scheda):</label>
+                <input type="text" data-field="seoDescription" data-idx="${idx}" value="${escapeHtml(item.seoDescription || '')}">
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <button type="button" class="btn-remove-top10" data-remove-idx="${idx}">🗑 Rimuovi</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.querySelectorAll('input[data-field]').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const i = parseInt(inp.getAttribute('data-idx'), 10);
+          const field = inp.getAttribute('data-field');
+          if (!EcomState.top10Config[i]) return;
+          if (field === 'price') {
+            EcomState.top10Config[i].price = parseFloat(inp.value) || 0;
+          } else {
+            EcomState.top10Config[i][field] = inp.value;
           }
-        }
+          if (field === 'imageUrl' || field === 'brand') {
+            const thumb = document.getElementById(`mgrThumb_${i}`);
+            if (thumb) {
+              thumb.src = EcomState.top10Config[i].imageUrl || getSmartProductVisual(EcomState.top10Config[i]);
+            }
+          }
+        });
       });
-    });
 
-    container.querySelectorAll('[data-remove-idx]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.getAttribute('data-remove-idx'), 10);
-        EcomState.top10Config.splice(i, 1);
-        renderVetrinaManagerList();
-        populateManagerCatalogSelect(document.getElementById('managerCatalogSearch')?.value || '');
+      container.querySelectorAll('[data-remove-idx]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.getAttribute('data-remove-idx'), 10);
+          EcomState.top10Config.splice(i, 1);
+          renderVetrinaManagerList();
+          populateManagerCatalogSelect(document.getElementById('managerCatalogSearch')?.value || '');
+        });
       });
-    });
+    }
   }
 
   // 11. INVIO E SALVATAGGIO ORDINE MULTI-RIGA (Carta Stripe, Bonifico Anticipato, Ri.Ba. 60-90gg B2B, WhatsApp, Email)
