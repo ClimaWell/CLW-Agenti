@@ -1030,7 +1030,10 @@
         const code = btn.getAttribute('data-share-code');
         const prod = getProductByCode(code);
         if (!prod) return;
-        const shareUrl = `${window.location.origin}/e-com/?prodotto=${encodeURIComponent(prod.code)}&agent=${encodeURIComponent(EcomState.context.agentCode)}`;
+        const isCorePromo = String(prod.code).toUpperCase().startsWith('COR');
+        const shareUrl = isCorePromo
+          ? `${window.location.origin}/e-com/p/${encodeURIComponent(prod.code)}.html`
+          : `${window.location.origin}/e-com/?prodotto=${encodeURIComponent(prod.code)}&agent=${encodeURIComponent(EcomState.context.agentCode)}`;
         updateSeoForSingleProduct(prod);
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(shareUrl).then(() => {

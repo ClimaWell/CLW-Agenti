@@ -52,6 +52,11 @@
   to = "/commercial-hub/index.html"
   status = 200
 
+[[redirects]]
+  from = "/e-com/p/:code"
+  to = "/e-com/p/:code.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
